@@ -43,3 +43,4 @@ venv/
 *.tmp
 *.log
 _deps/
+photo.bmp
