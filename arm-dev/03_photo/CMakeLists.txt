@@ -1,6 +1,5 @@
 # ---------------------------------------------------------------------------
-#  DNRP2350A  SDK 工程: 03_photo  (ARM Cortex-M33)
-#  迷你相框 — TF卡 BMP → ST7789 LCD
+#  DNRP2350A  03_photo  (ARM Cortex-M33)
 # ---------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.13)
 
@@ -13,14 +12,16 @@ include(../pico_sdk_import.cmake)
 project(03_photo C CXX ASM)
 pico_sdk_init()
 
-# ---- FatFs 中间件 (仅本项目) ------------------------------------------------
 add_subdirectory(Middlewares/FatFs_SPI build)
 
-# ---- 源文件: common BSP + 本地 SDIO + main ----------------------------------
-file(GLOB_RECURSE BSP_SRC  ${COMMON_DIR}/BSP/*.c)
-file(GLOB_RECURSE SDIO_SRC BSP/SDIO/*.c)
-add_executable(${PROJECT_NAME} main.c ${BSP_SRC} ${SDIO_SRC})
-
+file(GLOB BSP_SRC
+    ${COMMON_DIR}/BSP/LCD/*.c
+    ${COMMON_DIR}/BSP/LED/*.c
+    ${COMMON_DIR}/BSP/SPI/*.c
+    ${COMMON_DIR}/BSP/UART/*.c
+    ${COMMON_DIR}/BSP/SDIO/*.c
+)
+add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${COMMON_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
@@ -28,7 +29,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/Middlewares/FatFs_SPI/include
     ${CMAKE_CURRENT_LIST_DIR}/Middlewares/FatFs_SPI/ff15/source
 )
-
 target_link_libraries(${PROJECT_NAME}
     pico_stdlib hardware_spi hardware_uart hardware_irq hardware_dma
     FatFs_SPI

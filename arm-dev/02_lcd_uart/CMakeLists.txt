@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-#  DNRP2350A  SDK 工程: 02_lcd_uart  (ARM Cortex-M33)
+#  DNRP2350A  02_lcd_uart  (ARM Cortex-M33)
 # ---------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.13)
 
@@ -12,7 +12,12 @@ include(../pico_sdk_import.cmake)
 project(02_lcd_uart C CXX ASM)
 pico_sdk_init()
 
-file(GLOB_RECURSE BSP_SRC ${COMMON_DIR}/BSP/*.c)
+file(GLOB BSP_SRC
+    ${COMMON_DIR}/BSP/LCD/*.c
+    ${COMMON_DIR}/BSP/LED/*.c
+    ${COMMON_DIR}/BSP/SPI/*.c
+    ${COMMON_DIR}/BSP/UART/*.c
+)
 add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE ${COMMON_DIR})
 target_link_libraries(${PROJECT_NAME} pico_stdlib hardware_spi hardware_uart hardware_irq)
