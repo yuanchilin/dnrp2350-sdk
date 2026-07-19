@@ -1,5 +1,6 @@
 # ---------------------------------------------------------------------------
 #  DNRP2350A  SDK 工程: 02_lcd_uart  (ARM Cortex-M33)
+#  基于正点原子官方 BSP 驱动
 # ---------------------------------------------------------------------------
 cmake_minimum_required(VERSION 3.13)
 
@@ -18,12 +19,14 @@ add_executable(${PROJECT_NAME}
     ${SRC_FILES}
 )
 
+# ---- 包含路径 ---------------------------------------------------------------
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+
 # ---- 链接库 -----------------------------------------------------------------
 target_link_libraries(${PROJECT_NAME}
     pico_stdlib
     hardware_spi
     hardware_uart
-    hardware_pwm
     hardware_irq
 )
 
