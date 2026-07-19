@@ -524,9 +524,14 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
                     {
                         colortemp = color;
                     }
-                    else if (mode == 0)                     /* 无效点,不显示 */
+                    else if (mode == 0)
                     {
                         colortemp = 0xFFFF;
+                    }
+                    /* mode=1: 背景也写, 但用黑色 */
+                    else
+                    {
+                        colortemp = 0x0000;
                     }
 
                     lcd_write_data16(colortemp);
@@ -537,7 +542,7 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
     else
     {
         csize = (size * 16) / 8;
-        
+
         for (t = 0; t < csize; t++)
         {
             temp = asc2_2412[chr][t];
@@ -557,9 +562,14 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
                 {
                     colortemp = color;
                 }
-                else if (mode == 0)                         /* 无效点,不显示 */
+                else if (mode == 0)
                 {
                     colortemp = 0xFFFF;
+                }
+                /* mode=1: 背景也写, 用黑色 */
+                else
+                {
+                    colortemp = 0x0000;
                 }
 
                 lcd_write_data16(colortemp);
