@@ -5,7 +5,7 @@
  */
 
 #include "pico/stdlib.h"
-#include "BSP/led.h"
+#include "BSP/LED/led.h"
 
 int main(void)
 {

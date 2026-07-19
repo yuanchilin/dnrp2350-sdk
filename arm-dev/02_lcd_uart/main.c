@@ -14,7 +14,7 @@
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
-#include "BSP/uart.h"
+#include "BSP/UART/uart.h"
 
 /* ========================================================================== */
 /*  命令行缓冲区                                                               */
