@@ -12,7 +12,7 @@ include(../pico_sdk_import.cmake)
 project(05_badusb C CXX ASM)
 pico_sdk_init()
 
-add_subdirectory(Middlewares/FatFs_SPI build)
+add_subdirectory(${COMMON_DIR}/Middlewares/FatFs_SPI build)
 
 file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/LCD/*.c
@@ -26,9 +26,9 @@ add_executable(${PROJECT_NAME} main.c hid_keyboard.c payload.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${COMMON_DIR}
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/Middlewares/FatFs_SPI/sd_driver
-    ${CMAKE_CURRENT_LIST_DIR}/Middlewares/FatFs_SPI/include
-    ${CMAKE_CURRENT_LIST_DIR}/Middlewares/FatFs_SPI/ff15/source
+    ${COMMON_DIR}/Middlewares/FatFs_SPI/sd_driver
+    ${COMMON_DIR}/Middlewares/FatFs_SPI/include
+    ${COMMON_DIR}/Middlewares/FatFs_SPI/ff15/source
 )
 target_link_libraries(${PROJECT_NAME}
     pico_stdlib hardware_spi hardware_uart hardware_irq hardware_dma
