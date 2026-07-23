@@ -20,6 +20,7 @@ file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/SPI/*.c
     ${COMMON_DIR}/BSP/UART/*.c
     ${COMMON_DIR}/BSP/SDIO/*.c
+    ${COMMON_DIR}/shell/*.c
 )
 add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 pico_generate_pio_header(${PROJECT_NAME} ${CMAKE_CURRENT_LIST_DIR}/lcd_spi.pio)

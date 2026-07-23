@@ -21,6 +21,9 @@ file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/UART/*.c
     ${COMMON_DIR}/BSP/SDIO/*.c
     ${COMMON_DIR}/BSP/KEY/*.c
+    ${COMMON_DIR}/shell/*.c
+    ${COMMON_DIR}/console/*.c
+    ${COMMON_DIR}/commands/*.c
 )
 add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
