@@ -85,6 +85,53 @@ static void _cmd_reboot(const char *arg)
     reset_usb_boot(0, 0);
 }
 
+/* ---- Tab 补全 (prefix match over 内置 + 已注册命令) ---- */
+static void _tab_complete(char *cmd, int *pos)
+{
+    /* 确保前缀以 '\0' 结尾以便 strlen */
+    cmd[*pos] = '\0';
+
+    char *name = cmd;
+    while (*name && *name == ' ') name++;
+    int plen = (int)strlen(name);
+    if (plen == 0) return;
+
+    /* 收集候选: 内置命令 + 用户命令 */
+    static const char *builtin[] = { "help", "reboot" };
+    char hits[16][12];
+    int n = 0;
+    for (int i = 0; i < 2 && n < 16; i++)
+        if (strncmp(builtin[i], name, plen) == 0) snprintf(hits[n++], 12, "%s", builtin[i]);
+    for (int i = 0; i < cmd_cnt && n < 16; i++)
+        if (strncmp(cmds[i].name, name, plen) == 0) snprintf(hits[n++], 12, "%s", cmds[i].name);
+
+    if (n == 0) { shell_print("\a"); return; }  /* 无匹配 → 蜂鸣 */
+
+    if (n == 1) {
+        /* 唯一匹配 → 补全剩余字符 */
+        const char *full = hits[0];
+        for (int i = plen; full[i] && *pos < MAX_CMD - 1; i++) {
+            cmd[(*pos)++] = full[i];
+            uart_send_byte((uint8_t)full[i]);  /* 串口回显单字符 */
+            if (_echo_cb) _echo_cb(full[i]);   /* LCD 同步 */
+        }
+        return;
+    }
+
+    /* 多匹配 → 列出候选, 再重绘提示符+当前输入 */
+    shell_print("\r\n");
+    char b[24];
+    for (int i = 0; i < n; i++) {
+        snprintf(b, sizeof(b), "  %s", hits[i]);
+        _say_line(b);
+    }
+    shell_printf("%s", prompt_str);
+    for (int i = 0; i < *pos; i++) {
+        uart_send_byte((uint8_t)cmd[i]);
+        if (_echo_cb) _echo_cb(cmd[i]);
+    }
+}
+
 void shell_poll(void)
 {
     static char cmd[MAX_CMD];
@@ -134,6 +181,8 @@ void shell_poll(void)
 
         shell_printf("%s", prompt_str);
         pos = 0;
+    } else if (ch == '\t') {
+        _tab_complete(cmd, &pos);
     } else if (ch == '\b' || ch == 0x7F) {
         if (pos > 0) { pos--; shell_printf("\b \b"); if (_echo_cb) _echo_cb('\b'); }
     } else if (ch >= ' ' && pos < MAX_CMD - 1) {

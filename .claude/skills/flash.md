@@ -10,19 +10,18 @@ argument-hint: 06_terminal
 
 ## 执行
 
+先构建，再烧录：
 ```
-bash build_flash.sh $ARGUMENTS
+powershell -ExecutionPolicy Bypass -File .\build.ps1 $ARGUMENTS
+powershell -ExecutionPolicy Bypass -File .\flash.ps1
 ```
 
 ## 不带参数时
 
-列出所有可用项目：
-```
-ls -d arm-dev/*/
-```
+`build.ps1` 无参运行会列出所有可用项目。
 
 ## 原理
 
-1. `ninja` 编译项目
-2. 通过 MCP serial 工具向 COM5 发送 `reboot\r` → 板子进 bootloader
+1. `build.ps1` 用 cmake + ninja 编译项目
+2. `flash.ps1` 通过 MCP serial 向 COM5 发送 `reboot\r` → 板子进 bootloader
 3. 检测 RP2350 盘符 → 拷贝 .uf2 → 烧录完成
