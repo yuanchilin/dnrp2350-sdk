@@ -17,5 +17,6 @@ void shell_register(const char *name, const char *help, shell_cmd_fn fn);
 void shell_print(const char *s);
 void shell_printf(const char *fmt, ...);
 void shell_set_echo_cb(void (*cb)(char));  /* 键入回调 → LCD 显示 */
+void shell_set_output_cb(void (*cb)(const char *));  /* 命令输出回调 → LCD 终端 */
 
 #endif

@@ -22,10 +22,16 @@ echo "🔌 通过串口发送 reboot..."
 
 COM_PORT=$($PYTHON -c "
 import serial.tools.list_ports
+# 优先选 CH343 (固件 shell 所在口)，避免误选其他 USB 串口
 for p in serial.tools.list_ports.comports():
-    if 'CH34' in p.description or 'USB' in p.description or 'Serial' in p.description:
+    if 'CH34' in p.description:
         print(p.device)
         break
+else:
+    for p in serial.tools.list_ports.comports():
+        if 'USB' in p.description or 'Serial' in p.description:
+            print(p.device)
+            break
 " 2>/dev/null)
 
 if [ -n "$COM_PORT" ]; then

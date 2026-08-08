@@ -18,8 +18,17 @@ static char prompt_str[8] = "$ ";
 static struct { char name[12]; char help[32]; shell_cmd_fn fn; } cmds[MAX_ARGS];
 static int cmd_cnt = 0;
 static void (*_echo_cb)(char) = NULL;
+static void (*_out_cb)(const char *) = NULL;
 
 void shell_set_echo_cb(void (*cb)(char)) { _echo_cb = cb; }
+void shell_set_output_cb(void (*cb)(const char *)) { _out_cb = cb; }
+
+/* 命令输出: 串口 + (若设置了)LCD 终端 */
+static void _say_line(const char *s)
+{
+    shell_print(s); shell_print("\r\n");
+    if (_out_cb) _out_cb(s);
+}
 
 void shell_init(const char *prompt)
 {
@@ -58,18 +67,20 @@ void shell_printf(const char *fmt, ...)
 static void _cmd_help(const char *arg)
 {
     (void)arg;
-    shell_printf("\r\n=== COMMANDS ===\r\n");
+    char buf[64];
+    _say_line("=== COMMANDS ===");
     for (int i = 0; i < cmd_cnt; i++) {
-        shell_printf("  %-12s %s\r\n", cmds[i].name, cmds[i].help);
+        snprintf(buf, sizeof(buf), "  %-12s %s", cmds[i].name, cmds[i].help);
+        _say_line(buf);
     }
-    shell_printf("  help          show this\r\n");
-    shell_printf("  reboot        enter bootloader\r\n");
+    _say_line("  help          show this");
+    _say_line("  reboot        enter bootloader");
 }
 
 static void _cmd_reboot(const char *arg)
 {
     (void)arg;
-    shell_printf("\r\nrebooting...\r\n");
+    _say_line("rebooting...");
     sleep_ms(100);
     reset_usb_boot(0, 0);
 }
@@ -118,7 +129,7 @@ void shell_poll(void)
                     break;
                 }
             }
-            if (!found) shell_printf("? %s\r\n", cmd_name);
+            if (!found) { char b[64]; snprintf(b, sizeof(b), "? %s", cmd_name); _say_line(b); }
         }
 
         shell_printf("%s", prompt_str);
