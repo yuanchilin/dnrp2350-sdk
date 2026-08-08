@@ -154,6 +154,42 @@ void commands_view_file(const char *path)
     console_draw();  /* 恢复终端画面 */
 }
 
+/* ---- SD 卡文件名补全 (参数补全回调) ----
+ * 返回 0=无候选  1=唯一候选(填充 out)  >1=多候选(已列出并重绘) */
+static int _file_complete(const char *tok, char *out, int outsz)
+{
+    if (!_sd_ok) return 0;
+    int tlen = (int)strlen(tok);
+    DIR dir; FILINFO fno;
+    if (f_opendir(&dir, "/") != FR_OK) return 0;
+
+    /* 第一遍: 统计+收集匹配*/
+    char hits[16][40];
+    int n = 0;
+    while (n < 16 && f_readdir(&dir, &fno) == FR_OK && fno.fname[0]) {
+        if (tlen == 0 || strncmp(fno.fname, tok, tlen) == 0) {
+            snprintf(hits[n], 40, "%s", fno.fname);
+            n++;
+        }
+    }
+    f_closedir(&dir);
+    if (n == 0) return 0;
+
+    if (n == 1) {
+        snprintf(out, outsz, "%s", hits[0]);
+        return 1;
+    }
+
+    /* 多候选 → 列出候选名 (重绘由 shell 侧完成) */
+    shell_print("\r\n");
+    char b[48];
+    for (int i = 0; i < n; i++) {
+        snprintf(b, sizeof(b), "  %s", hits[i]);
+        echo(b);
+    }
+    return n;
+}
+
 void commands_register_all(void)
 {
     shell_register("ls",      "list files",       cmd_ls);
@@ -163,4 +199,5 @@ void commands_register_all(void)
     shell_register("sysinfo", "system info",      cmd_sysinfo);
     shell_register("clear",   "clear screen",     cmd_clear);
     shell_register("snake",   "play snake",       cmd_snake);
+    shell_set_arg_completer(_file_complete);
 }

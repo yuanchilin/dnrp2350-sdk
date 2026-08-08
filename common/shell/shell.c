@@ -19,9 +19,11 @@ static struct { char name[12]; char help[32]; shell_cmd_fn fn; } cmds[MAX_ARGS];
 static int cmd_cnt = 0;
 static void (*_echo_cb)(char) = NULL;
 static void (*_out_cb)(const char *) = NULL;
+static shell_arg_cb _arg_cb = NULL;
 
 void shell_set_echo_cb(void (*cb)(char)) { _echo_cb = cb; }
 void shell_set_output_cb(void (*cb)(const char *)) { _out_cb = cb; }
+void shell_set_arg_completer(shell_arg_cb cb) { _arg_cb = cb; }
 
 /* 命令输出: 串口 + (若设置了)LCD 终端 */
 static void _say_line(const char *s)
@@ -93,8 +95,39 @@ static void _tab_complete(char *cmd, int *pos)
 
     char *name = cmd;
     while (*name && *name == ' ') name++;
-    int plen = (int)strlen(name);
-    if (plen == 0) return;
+    if (*name == 0) return;
+
+    /* 只对第一个词(命令名)做补全: 遇到空格即截断 */
+    int plen = 0;
+    while (name[plen] && name[plen] != ' ') plen++;
+
+    /* 命令名后已有空格 → 补全第二个词(参数/文件名) */
+    if (name[plen] == ' ') {
+        if (!_arg_cb) return;                       /* 无参数补全器 → 静默 */
+        const char *tok = name + plen;              /* 指向空格后的参数前缀 */
+        while (*tok == ' ') tok++;
+        int tlen = (int)strlen(tok);
+        char out[64];
+        int n = _arg_cb(tok, out, sizeof(out));
+        if (n <= 0) return;                          /* 无候选 → 静默 */
+        if (n == 1) {
+            /* 唯一候选 → 追加剩余部分 (跳过已输入前缀) */
+            const char *full = out + tlen;           /* 从已输入前缀之后开始 */
+            for (int i = 0; full[i] && *pos < MAX_CMD - 1; i++) {
+                cmd[(*pos)++] = full[i];
+                uart_send_byte((uint8_t)full[i]);
+                if (_echo_cb) _echo_cb(full[i]);
+            }
+            return;
+        }
+        /* 多候选 → 回调已列出候选名, 这里重绘提示符+当前输入 */
+        shell_printf("%s", prompt_str);
+        for (int i = 0; i < *pos; i++) {
+            uart_send_byte((uint8_t)cmd[i]);
+            if (_echo_cb) _echo_cb(cmd[i]);
+        }
+        return;
+    }
 
     /* 收集候选: 内置命令 + 用户命令 */
     static const char *builtin[] = { "help", "reboot" };
