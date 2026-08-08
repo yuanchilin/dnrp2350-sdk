@@ -6,6 +6,7 @@
 #include "shell.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
+#include "hardware/watchdog.h"
 #include "BSP/UART/uart.h"
 #include <string.h>
 #include <stdio.h>
@@ -77,6 +78,7 @@ static void _cmd_help(const char *arg)
     }
     _say_line("  help          show this");
     _say_line("  reboot        enter bootloader");
+    _say_line("  reset         soft reset firmware");
 }
 
 static void _cmd_reboot(const char *arg)
@@ -85,6 +87,15 @@ static void _cmd_reboot(const char *arg)
     _say_line("rebooting...");
     sleep_ms(100);
     reset_usb_boot(0, 0);
+}
+
+static void _cmd_reset(const char *arg)
+{
+    (void)arg;
+    _say_line("resetting...");
+    sleep_ms(100);
+    watchdog_enable(1, 1);   /* 1ms 后触发 watchdog → 软复位回到固件 */
+    for (;;) { sleep_ms(10); }
 }
 
 /* ---- Tab 补全 (prefix match over 内置 + 已注册命令) ---- */
@@ -130,10 +141,10 @@ static void _tab_complete(char *cmd, int *pos)
     }
 
     /* 收集候选: 内置命令 + 用户命令 */
-    static const char *builtin[] = { "help", "reboot" };
+    static const char *builtin[] = { "help", "reboot", "reset" };
     char hits[16][12];
     int n = 0;
-    for (int i = 0; i < 2 && n < 16; i++)
+    for (int i = 0; i < 3 && n < 16; i++)
         if (strncmp(builtin[i], name, plen) == 0) snprintf(hits[n++], 12, "%s", builtin[i]);
     for (int i = 0; i < cmd_cnt && n < 16; i++)
         if (strncmp(cmds[i].name, name, plen) == 0) snprintf(hits[n++], 12, "%s", cmds[i].name);
@@ -198,6 +209,9 @@ void shell_poll(void)
         }
         else if (strcmp(cmd_name, "reboot") == 0) {
             _cmd_reboot(arg);
+        }
+        else if (strcmp(cmd_name, "reset") == 0) {
+            _cmd_reset(arg);
         }
         /* 用户命令 */
         else {

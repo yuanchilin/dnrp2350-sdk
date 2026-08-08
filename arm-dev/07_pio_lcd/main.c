@@ -69,9 +69,7 @@ static void pio_flush(int x,int y,int w,int h){
 }
 
 static void pio_flush_cb(int x,int y,int w,int h){
-    static int cnt=0;
     if(!pio_ok)return;
-    if(cnt==0){shell_print("FLUSH\r\n");cnt++;}
     pio_flush(x,y,w,h);
 }
 
@@ -102,32 +100,9 @@ int main(void){
 
     console_init(30,8,8,16,16);
     if(pio_ok){
-        /* PIO 验证: 整屏填红 */
-        /* 测试1: fb全填0xFF, PIO+DMA刷 → 应白屏 */
-        shell_print("PIO32v2 test: 0xFF fill\r\n");
-        memset(fb,0xFF,FB_SIZE);
-        pio_flush(0,0,240,135);
-        {char dbg[64];snprintf(dbg,sizeof(dbg),"  dma_busy=%d tc=%u\r\n",
-            dma_channel_is_busy(dma_ch), (unsigned)dma_hw->ch[dma_ch].transfer_count);
-            shell_print(dbg);}
-        sleep_ms(1000);
-        /* 测试1.5: fb填RED → 验证uint16_t字节序, 且 PIO 能多次刷屏 */
-        for(int i=0;i<FB_SIZE;i+=2){fb[i]=RED>>8;fb[i+1]=RED&0xFF;}
-        pio_flush(0,0,240,135);
-        sleep_ms(1000);
-        /* 测试2: CPU画红框 → 验证LCD & SPI1正常 */
-        lcd_fill(0,0,239,5,RED);lcd_fill(0,130,239,134,RED);
-        sleep_ms(1000);
-        /* 测试3: CPU写fb区域 → 对比 */
-        shell_print("CPU test: write fb\r\n");
-        lcd_set_window(0,0,239,20);lcd_write_cmd(0x2C);LCD_WR(1);LCD_CS(0);
-        for(int i=0;i<240*21*2;i++){uint8_t b=i&1?0xFF:0x00;spi_write_blocking(spi1,&b,1);}
-        LCD_CS(1);
-        sleep_ms(500);
-        shell_print("PIO32v2 OK\r\n");
         /* 启用 PIO+DMA 刷屏渲染路径 (每次刷屏前重启状态机) */
         console_set_pio_mode(fb_char, pio_flush_cb);
-    } else { shell_print("PIO FAIL\r\n"); }
+    }
 
     FATFS fs;bool sd_ok=(f_mount(&fs,"0:",1)==FR_OK);
     shell_init("$ ");shell_set_echo_cb(console_putc);

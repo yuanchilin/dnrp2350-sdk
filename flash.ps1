@@ -29,11 +29,15 @@ Write-Host "============================================"
 
 # ---- 1. 通过 MCP serial HTTP 接口发 reboot（走 MCP 持久连接，可靠且不占用串口）----
 # 先发一串回车清空板子 shell 的 UART 输入缓冲，避免残留字符污染 reboot 命令
-try {
-    $flush = @{ command = "`r"; lineEnding = ""; timeout = 300 } | ConvertTo-Json
-    Invoke-RestMethod -Uri "http://localhost:9721/send" -Method Post `
-        -ContentType "application/json" -Body $flush -TimeoutSec 3 | Out-Null
-} catch { /* 忽略清空失败 */ }
+# 多次回车可让 shell 把缓冲中残留的命令逐个"消费"掉，确保 reboot 干净执行
+for ($k = 0; $k -lt 5; $k++) {
+    try {
+        $flush = @{ command = "`r"; lineEnding = ""; timeout = 200 } | ConvertTo-Json
+        Invoke-RestMethod -Uri "http://localhost:9721/send" -Method Post `
+            -ContentType "application/json" -Body $flush -TimeoutSec 3 | Out-Null
+    } catch { break }
+    Start-Sleep -Milliseconds 150
+}
 
 $body = @{ command = "reboot`r"; lineEnding = "" } | ConvertTo-Json
 try {
