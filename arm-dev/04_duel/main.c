@@ -11,12 +11,13 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
-#include "pico/bootrom.h"
 #include "pico/multicore.h"
+#include "hardware/sync.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
 #include "BSP/UART/uart.h"
+#include "shell/shell.h"
 
 extern void core1_entry(void);
 
@@ -41,8 +42,6 @@ double         g_cx    = -0.75;          /* 中心 X */
 double         g_cy    =  0.1;           /* 中心 Y */
 double         g_scale =  2.5;           /* 显示范围 */
 volatile bool  g_go    = false;          /* 发令枪 */
-volatile int   g_c0_y  = 0;              /* Core0 当前行 (用于 LCD 实时绘制) */
-volatile bool  g_c0_done = false;        /* Core0 完成 */
 volatile bool  g_c1_done = false;        /* Core1 完成 */
 
 /* ========================================================================== */
@@ -83,9 +82,7 @@ static void core0_render(void)
             }
             fb[y][x] = iter_color(iter);
         }
-        g_c0_y = y;     /* 报告进度 */
     }
-    g_c0_done = true;
 }
 
 /* ========================================================================== */
@@ -106,7 +103,7 @@ static void lcd_write_row(int y)
 static void run_duel(void)
 {
     /* 复位 */
-    g_c0_y = 0;  g_c0_done = false;  g_c1_done = false;
+    g_c1_done = false;
     g_go = false;
 
     uart_printf("\r\n=== ROUND (%.3f, %.3f) scale=%.3f ===\r\n", g_cx, g_cy, g_scale);
@@ -114,14 +111,18 @@ static void run_duel(void)
     /* 发令: 启动 Core1 */
     multicore_reset_core1();
     multicore_launch_core1(core1_entry);
+    /* 内存屏障: 确保 g_cx/g_cy/g_scale 参数已写入后再发令,
+     * 否则 Core1 可能读到旧参数 */
+    __dmb();
     g_go = true;
 
     /* Core0 渲染左半边 */
     absolute_time_t t0 = get_absolute_time();
     core0_render();
 
-    /* 等待 Core1 完成 */
+    /* 等待 Core1 完成 (内存屏障: 确保 fb 写入对 Core0 可见) */
     while (!g_c1_done) tight_loop_contents();
+    __dmb();
     absolute_time_t t1 = get_absolute_time();
 
     /* LCD: 补写 Core1 刚开始时的行 (Core0 可能先写了部分) */
@@ -171,7 +172,7 @@ int main(void)
                 if      (strcmp(cmd, "n") == 0) { g_cx += g_scale*0.3; run_duel(); }
                 else if (strcmp(cmd, "z") == 0) { g_scale *= 0.5;    run_duel(); }
                 else if (strcmp(cmd, "x") == 0) { g_scale *= 2.0;    run_duel(); }
-                else if (strcmp(cmd, "r") == 0) { sleep_ms(100); reset_usb_boot(0,0); }
+                else if (strcmp(cmd, "r") == 0) { shell_reboot(); }
                 else uart_printf("? n=next z=zoom x=shrink r=reboot\r\n> ");
                 pos = 0;
             }

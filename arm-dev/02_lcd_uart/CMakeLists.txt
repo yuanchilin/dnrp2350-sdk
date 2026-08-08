@@ -17,10 +17,11 @@ file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/LED/*.c
     ${COMMON_DIR}/BSP/SPI/*.c
     ${COMMON_DIR}/BSP/UART/*.c
+    ${COMMON_DIR}/shell/*.c
 )
 add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE ${COMMON_DIR})
-target_link_libraries(${PROJECT_NAME} pico_stdlib hardware_spi hardware_uart hardware_irq)
+target_link_libraries(${PROJECT_NAME} pico_stdlib hardware_spi hardware_uart hardware_irq hardware_watchdog)
 
 pico_add_extra_outputs(${PROJECT_NAME})
 pico_enable_stdio_usb(${PROJECT_NAME}  0)

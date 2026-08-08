@@ -1,6 +1,6 @@
 /**
  * @file    commands.h
- * @brief   标准命令库 — ls/cat/view/free/sysinfo/clear/snake
+ * @brief   标准命令库 — ls/cat/view/free/sysinfo/clear/uptime/echo/setcolor/snake
  */
 
 #ifndef __COMMANDS_H

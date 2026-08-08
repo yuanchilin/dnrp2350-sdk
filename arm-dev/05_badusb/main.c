@@ -33,6 +33,7 @@
 static char files[MAX_FILES][MAX_NAME];
 static int  file_cnt = 0;
 static int  selected = 0;
+static int  scroll_top = 0;         /* 菜单滚动偏移 (支持 >8 个文件) */
 
 /* ========================================================================== */
 /*  扫描 SD 卡 .txt 文件                                                       */
@@ -66,13 +67,13 @@ static void run_script(const char *path)
     }
 
     uint32_t size = f_size(&fil);
-    if (size > 8192) {          /* 最大 8KB */
+    if (size > 16384) {          /* 最大 16KB */
         uart_printf("Script too large (%lu bytes)\r\n", (unsigned long)size);
         f_close(&fil);
         return;
     }
 
-    static uint8_t buf[8192];
+    static uint8_t buf[16384];
     UINT br;
     f_read(&fil, buf, size, &br);
     f_close(&fil);
@@ -123,13 +124,14 @@ static void draw_menu(void)
     lcd_fill(0, 0, LCD_W - 1, 18, BLUE);
     lcd_show_string(2, 2, 220, 16, 12, "BADUSB — Payload Menu", WHITE);
 
-    /* 文件列表 */
+    /* 文件列表 (支持滚动, 一屏显示 8 项) */
     if (file_cnt == 0) {
         lcd_show_string(4, 30, 220, 24, 16, "No .txt files", RED);
         lcd_show_string(4, 50, 220, 20, 12, "Put scripts on FAT32 SD", MAGENTA);
     } else {
-        for (int i = 0; i < file_cnt && i < 8; i++) {
-            int y = 22 + i * 13;
+        int shown = 0;
+        for (int i = scroll_top; i < file_cnt && shown < 8; i++, shown++) {
+            int y = 22 + shown * 13;
             uint16_t bg = (i == selected) ? BLUE : BLACK;
             uint16_t fg = (i == selected) ? WHITE : CYAN;
 
@@ -221,15 +223,18 @@ int main(void)
                 cmd[pos] = '\0'; uart_printf("\r\n");
                 if (strcmp(cmd, "n") == 0 && file_cnt > 0) {
                     selected = (selected + 1) % file_cnt;
+                    if (selected - scroll_top >= 8) scroll_top = selected - 7;
                     draw_menu();
                 } else if (strcmp(cmd, "p") == 0 && file_cnt > 0) {
                     selected = (selected - 1 + file_cnt) % file_cnt;
+                    if (selected < scroll_top) scroll_top = selected;
                     draw_menu();
                 } else if (strcmp(cmd, "e") == 0 && file_cnt > 0) {
                     run_script(files[selected]);
                     draw_menu();
                 } else if (strcmp(cmd, "s") == 0) {
                     scan_scripts();
+                    selected = selected < file_cnt ? selected : (file_cnt ? file_cnt - 1 : 0);
                     uart_printf("%d scripts found.\r\n", file_cnt);
                     draw_menu();
                 } else if (strlen(cmd) > 0) {

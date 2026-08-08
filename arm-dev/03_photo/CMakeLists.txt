@@ -20,6 +20,8 @@ file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/SPI/*.c
     ${COMMON_DIR}/BSP/UART/*.c
     ${COMMON_DIR}/BSP/SDIO/*.c
+    ${COMMON_DIR}/shell/*.c
+    ${COMMON_DIR}/commands/bmp.c
 )
 add_executable(${PROJECT_NAME} main.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -30,7 +32,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${COMMON_DIR}/Middlewares/FatFs_SPI/ff15/source
 )
 target_link_libraries(${PROJECT_NAME}
-    pico_stdlib hardware_spi hardware_uart hardware_irq hardware_dma
+    pico_stdlib hardware_spi hardware_uart hardware_irq hardware_dma hardware_watchdog
     FatFs_SPI
 )
 

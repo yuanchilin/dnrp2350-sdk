@@ -14,6 +14,7 @@
 
 #define MAX_CMD  64
 #define MAX_ARGS 16
+#define MAX_HIST 16
 
 static char prompt_str[8] = "$ ";
 static struct { char name[12]; char help[32]; shell_cmd_fn fn; } cmds[MAX_ARGS];
@@ -21,6 +22,16 @@ static int cmd_cnt = 0;
 static void (*_echo_cb)(char) = NULL;
 static void (*_out_cb)(const char *) = NULL;
 static shell_arg_cb _arg_cb = NULL;
+
+/* 命令历史 (上下键浏览) */
+static char hist[MAX_HIST][MAX_CMD];
+static int  hist_cnt = 0;   /* 已存命令数 */
+static int  hist_pos = 0;   /* 当前浏览位置 (0=新行/临时槽, >0=历史索引) */
+static char hist_tmp[MAX_CMD];  /* 临时槽: 保存未执行的当前输入 */
+
+static bool _ansi = false;  /* 串口 ANSI 颜色开关 */
+
+void shell_set_ansi(bool on) { _ansi = on; }
 
 void shell_set_echo_cb(void (*cb)(char)) { _echo_cb = cb; }
 void shell_set_output_cb(void (*cb)(const char *)) { _out_cb = cb; }
@@ -67,35 +78,53 @@ void shell_printf(const char *fmt, ...)
 }
 
 /* ---- 内置命令 ---- */
+/* help 行: 串口命令名亮绿色, 帮助说明普通色; LCD 用普通文本(避免 ANSI 乱码) */
+static void _help_line(const char *name, const char *help)
+{
+    char tmp[64];
+    snprintf(tmp, sizeof(tmp), "  " CLR_CMD "%-12s" ANSI_RESET " %s", name, help);
+    shell_print(tmp); shell_print("\r\n");          /* 串口: 命令名亮绿 */
+    if (_out_cb) _out_cb(tmp);                       /* LCD: 同源 ANSI 串, 由 console_write_ansi 解析 */
+}
+
 static void _cmd_help(const char *arg)
 {
     (void)arg;
-    char buf[64];
     _say_line("=== COMMANDS ===");
     for (int i = 0; i < cmd_cnt; i++) {
-        snprintf(buf, sizeof(buf), "  %-12s %s", cmds[i].name, cmds[i].help);
-        _say_line(buf);
+        _help_line(cmds[i].name, cmds[i].help);
     }
-    _say_line("  help          show this");
-    _say_line("  reboot        enter bootloader");
-    _say_line("  reset         soft reset firmware");
+    _help_line("help",   "show this");
+    _help_line("reboot", "enter bootloader");
+    _help_line("reset",  "soft reset firmware");
 }
 
-static void _cmd_reboot(const char *arg)
+/* ---- 公共 reboot/reset (供各项目复用) ---- */
+void shell_reboot(void)
 {
-    (void)arg;
     _say_line("rebooting...");
     sleep_ms(100);
     reset_usb_boot(0, 0);
 }
 
-static void _cmd_reset(const char *arg)
+void shell_reset(void)
 {
-    (void)arg;
     _say_line("resetting...");
     sleep_ms(100);
     watchdog_enable(1, 1);   /* 1ms 后触发 watchdog → 软复位回到固件 */
     for (;;) { sleep_ms(10); }
+}
+
+static void _cmd_reboot(const char *arg)
+{
+    (void)arg;
+    shell_reboot();
+}
+
+static void _cmd_reset(const char *arg)
+{
+    (void)arg;
+    shell_reset();
 }
 
 /* ---- Tab 补全 (prefix match over 内置 + 已注册命令) ---- */
@@ -182,12 +211,13 @@ void shell_poll(void)
     static int  pos = 0;
     static bool  first = true;
 
-    if (first) { shell_printf("%s", prompt_str); first = false; }
+    if (first) { if (_ansi) shell_print(ANSI_RESET); shell_printf("%s", prompt_str); if (_ansi) shell_print(CLR_INPUT); first = false; }
 
     int ch = uart_read_byte();
     if (ch < 0) return;
 
     if (ch == '\r' || ch == '\n') {
+        if (_ansi) shell_print(ANSI_RESET);   /* 命令执行 → 复位颜色 */
         cmd[pos] = '\0';
         shell_printf("\r\n");
         if (_echo_cb) _echo_cb('\n');
@@ -203,7 +233,6 @@ void shell_poll(void)
         if (strlen(cmd_name) == 0) {
             /* skip */
         }
-        /* 内置 */
         else if (strcmp(cmd_name, "help") == 0) {
             _cmd_help(arg);
         }
@@ -226,8 +255,55 @@ void shell_poll(void)
             if (!found) { char b[64]; snprintf(b, sizeof(b), "? %s", cmd_name); _say_line(b); }
         }
 
+        /* 保存历史 (非空行) */
+        if (cmd[0]) {
+            if (hist_cnt == 0 || strcmp(hist[hist_cnt - 1], cmd) != 0) {
+                if (hist_cnt < MAX_HIST) {
+                    snprintf(hist[hist_cnt++], MAX_CMD, "%s", cmd);
+                } else {
+                    for (int i = 0; i < MAX_HIST - 1; i++) memcpy(hist[i], hist[i + 1], MAX_CMD);
+                    snprintf(hist[MAX_HIST - 1], MAX_CMD, "%s", cmd);
+                }
+            }
+        }
+        hist_pos = 0;
+
         shell_printf("%s", prompt_str);
+        if (_ansi) shell_print(CLR_INPUT);   /* 新命令输入 → 绿色 */
         pos = 0;
+    } else if (ch == 0x1B) {   /* ESC → 箭头序列 (上下键浏览历史) */
+        /* 等待 '[' 和 A/B (上下) */
+        int do_hist = 0;
+        int c1 = uart_read_byte();
+        if (c1 == '[') {
+            int c2 = uart_read_byte();
+            if (c2 == 'A') do_hist = 1;    /* up: 浏览更旧 (索引 +1) */
+            else if (c2 == 'B') do_hist = -1; /* down: 回更新/新行 (索引 -1) */
+        }
+        if (do_hist) {
+            /* 临时槽: 保存当前未执行输入, 供 down 回到新行时恢复 */
+            {
+                int k = 0;
+                while (k < pos && k < MAX_CMD - 1) { hist_tmp[k] = cmd[k]; k++; }
+                hist_tmp[k] = '\0';
+            }
+
+            int new_pos = hist_pos + do_hist;
+            if (new_pos >= 0 && new_pos <= hist_cnt) {
+                hist_pos = new_pos;
+                /* 清空当前行并回显 */
+                for (int i = 0; i < pos; i++) { shell_print("\b \b"); if (_echo_cb) _echo_cb('\b'); }
+                pos = 0;
+                const char *h;
+                if (hist_pos == 0) h = hist_tmp;  /* 临时槽 (当前未执行输入) */
+                else h = hist[hist_cnt - hist_pos];    /* 历史命令 */
+                for (int i = 0; h[i] && i < MAX_CMD - 1; i++) {
+                    cmd[pos++] = h[i];
+                    uart_send_byte((uint8_t)h[i]);
+                    if (_echo_cb) _echo_cb(h[i]);
+                }
+            }
+        }
     } else if (ch == '\t') {
         _tab_complete(cmd, &pos);
     } else if (ch == '\b' || ch == 0x7F) {

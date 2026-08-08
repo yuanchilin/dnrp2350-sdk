@@ -17,11 +17,12 @@ file(GLOB BSP_SRC
     ${COMMON_DIR}/BSP/LED/*.c
     ${COMMON_DIR}/BSP/SPI/*.c
     ${COMMON_DIR}/BSP/UART/*.c
+    ${COMMON_DIR}/shell/*.c
 )
 add_executable(${PROJECT_NAME} main.c core1.c ${BSP_SRC})
 target_include_directories(${PROJECT_NAME} PRIVATE ${COMMON_DIR})
 target_link_libraries(${PROJECT_NAME}
-    pico_stdlib pico_multicore hardware_spi hardware_uart hardware_irq
+    pico_stdlib pico_multicore hardware_spi hardware_uart hardware_irq hardware_watchdog
 )
 
 pico_add_extra_outputs(${PROJECT_NAME})

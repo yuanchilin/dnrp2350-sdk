@@ -5,6 +5,7 @@
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "hardware/sync.h"
 
 /* ========================================================================== */
 /*  外部共享变量 (main.c)                                                      */
@@ -63,6 +64,9 @@ void core1_entry(void)
         }
     }
 
+    /* 内存屏障: 确保 fb 全部写入完成后再置完成标志,
+     * 否则 Core0 可能读到未写完的数据 */
+    __dmb();
     g_c1_done = true;
 
     while (1) __wfe();

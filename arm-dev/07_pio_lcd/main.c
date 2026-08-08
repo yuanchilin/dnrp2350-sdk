@@ -8,6 +8,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/dma.h"
+#include "hardware/sync.h"
 #include "lcd_spi.pio.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
@@ -51,10 +52,18 @@ static void fb_char(int col,int row,char ch,uint16_t fg,uint16_t bg){
 static void pio_flush(int x,int y,int w,int h){
     if(!pio_ok)return;
     int nbytes=w*h*2, nwords=(nbytes+3)/4;
-    const uint8_t *src=fb+(y*LCD_W+x)*2;
+    /* 区域可能跨多行 (如 8x16 字符), fb 每行 LCD_W 像素 → 行间跳 2*LCD_W 字节,
+       不能按连续内存打包, 必须逐行按步长取字节 */
     for(int i=0;i<nwords;i++){
-        uint8_t b0=src[i*4], b1=src[i*4+1], b2=src[i*4+2], b3=src[i*4+3];
-        packed[i]=((uint32_t)b0<<24)|((uint32_t)b1<<16)|((uint32_t)b2<<8)|(uint32_t)b3;
+        uint32_t wd=0;
+        for(int k=0;k<4;k++){
+            int bi=i*4+k;
+            if(bi>=nbytes)break;
+            int ry=bi/(w*2), rem=bi%(w*2), rx=rem/2, bo=rem&1;
+            uint8_t b=fb[((y+ry)*LCD_W+x+rx)*2+bo];
+            wd|=((uint32_t)b)<<(24-k*8);
+        }
+        packed[i]=wd;
     }
     pio_sm_set_enabled(pio0,pio_sm,false);
     pio_sm_restart(pio0,pio_sm);
@@ -62,6 +71,7 @@ static void pio_flush(int x,int y,int w,int h){
     lcd_set_window(x,y,x+w-1,y+h-1);lcd_write_cmd(0x2C);LCD_WR(1);LCD_CS(0);
     gpio_set_function(MOSI,GPIO_FUNC_PIO0);gpio_set_function(SCK,GPIO_FUNC_PIO0);
     pio_sm_set_enabled(pio0,pio_sm,true);
+    __dsb();
     dma_channel_set_read_addr(dma_ch,packed,false);
     dma_channel_set_trans_count(dma_ch,nwords,true);
     dma_channel_wait_for_finish_blocking(dma_ch);
@@ -72,6 +82,10 @@ static void pio_flush_cb(int x,int y,int w,int h){
     if(!pio_ok)return;
     pio_flush(x,y,w,h);
 }
+
+/* 命令回显: 固定暗绿 (与 help 命令名的亮绿区分); 命令输出: 默认灰 */
+static void echo_colored(char c){ console_set_color(0x03E0, BLACK); console_putc(c); }
+static void out_colored(const char *s){ console_set_color(GRAY, BLACK); console_write_ansi(s); console_putc('\n'); }
 
 int main(void){
     led_init();LED(0);
@@ -105,8 +119,14 @@ int main(void){
     }
 
     FATFS fs;bool sd_ok=(f_mount(&fs,"0:",1)==FR_OK);
-    shell_init("$ ");shell_set_echo_cb(console_putc);
-    shell_set_output_cb((void (*)(const char*))console_println);
+    shell_init("$ ");shell_set_ansi(true);
+    shell_set_echo_cb(echo_colored);
+    shell_set_output_cb((void (*)(const char*))out_colored);
+    /* 启动初始化信息: 先于照片等待打印, 复位后串口即可见 */
+    shell_print("\r\n");
+    shell_print("== DNRP2350A PIO LCD Terminal ==\r\n");
+    shell_print("SD: "); shell_print(sd_ok ? "OK" : "ERR"); shell_print("\r\n");
+    shell_print("Type 'help' for commands\r\n");
     commands_init(sd_ok);commands_register_all();
     if(sd_ok)commands_view_file("/photo.bmp");
 

@@ -1,6 +1,6 @@
 /**
  * @file    commands.c
- * @brief   标准命令: ls cat view free sysinfo clear snake
+ * @brief   标准命令: ls cat view free sysinfo clear uptime echo setcolor snake
  */
 
 #include "commands.h"
@@ -14,6 +14,7 @@
 #include "BSP/SDIO/spi_sdcard.h"
 #include "console/console.h"
 #include "shell/shell.h"
+#include "commands/bmp.h"
 #include "ff.h"
 
 #define COLS 30
@@ -21,24 +22,53 @@
 
 static bool _sd_ok = false;
 
-/* 双输出: LCD + 串口 */
-static void echo(const char *s) { shell_print(s); shell_print("\r\n"); console_println(s); }
+/* 双输出: LCD + 串口; 命令输出一律默认灰 (避免被输入回显的绿色污染) */
+static void echo(const char *s) { shell_print(s); shell_print("\r\n"); console_set_color(GRAY, BLACK); console_println(s); }
+
+/* 大小写无关的扩展名比较 */
+static bool ext_eq(const char *ext, const char *s) {
+    for (; *s; ext++, s++) {
+        char a = *ext, b = *s;
+        if (a >= 'A' && a <= 'Z') a += 32;
+        if (b >= 'A' && b <= 'Z') b += 32;
+        if (a != b) return false;
+    }
+    return *ext == '\0';
+}
+
+/* 按类型取色: 目录蓝 / 图片品红 / 文本黄 / 可执行亮绿 / 其他普通 */
+static const char *ls_color(const char *name, bool is_dir) {
+    if (is_dir) return CLR_DIR;
+    const char *ext = strrchr(name, '.');
+    if (ext) {
+        ext++;  /* 跳过 '.' */
+        if (ext_eq(ext, "bmp") || ext_eq(ext, "jpg") || ext_eq(ext, "jpeg") ||
+            ext_eq(ext, "png") || ext_eq(ext, "gif")) return CLR_IMG;
+        if (ext_eq(ext, "txt") || ext_eq(ext, "log") ||
+            ext_eq(ext, "c") || ext_eq(ext, "h")) return CLR_TXT;
+        if (ext_eq(ext, "elf") || ext_eq(ext, "bin") ||
+            ext_eq(ext, "uf2") || ext_eq(ext, "exe")) return CLR_EXE;
+    }
+    return CLR_FILE;
+}
+
+/* ls 行: 串口与 LCD 共用同一份 ANSI 串 (LCD 由 console_write_ansi 解析着色); 目录加 '/' 后缀 */
+static void echo_ls(const char *name, unsigned long size, bool is_dir) {
+    char tmp[64];
+    snprintf(tmp, sizeof(tmp), "%s%-20s%s%s %6lu", ls_color(name, is_dir), name, is_dir ? "/" : "", ANSI_RESET, size);
+    shell_print(tmp); shell_print("\r\n");
+    console_write_ansi(tmp); console_putc('\n');
+}
 
 void commands_init(bool sd_ok) { _sd_ok = sd_ok; }
-
-/* ---- BMP decoder ---- */
-typedef struct __attribute__((packed)){uint16_t bfType;uint32_t bfSize;uint16_t bfReserved1,bfReserved2;uint32_t bfOffBits;}bmp_hdr_t;
-typedef struct __attribute__((packed)){uint32_t biSize;int32_t biWidth,biHeight;uint16_t biPlanes,biBitCount;uint32_t biCompression,biSizeImage;}bmp_info_t;
 
 static void cmd_ls(const char *arg) {
     (void)arg;
     if (!_sd_ok) { echo("no SD"); return; }
     DIR dir; FILINFO fno;
     if (f_opendir(&dir, "/") != FR_OK) { echo("fail"); return; }
-    char l[32];
     while (f_readdir(&dir, &fno) == FR_OK && fno.fname[0]) {
-        snprintf(l, 32, "%-20s %6lu", fno.fname, (unsigned long)fno.fsize);
-        echo(l);
+        echo_ls(fno.fname, (unsigned long)fno.fsize, (fno.fattrib & AM_DIR) != 0);
     }
     f_closedir(&dir);
 }
@@ -61,31 +91,7 @@ static void cmd_cat(const char *arg) {
 
 static void cmd_view(const char *arg) {
     if (!_sd_ok || !arg || !*arg) { echo("usage: view <file.bmp>"); return; }
-    FIL fil; UINT br;
-    if (f_open(&fil, arg, FA_READ) != FR_OK) { echo("open fail"); return; }
-    bmp_hdr_t fh; bmp_info_t ih;
-    f_read(&fil, &fh, sizeof(fh), &br);
-    f_read(&fil, &ih, sizeof(ih), &br);
-    if (fh.bfType != 0x4D42 || ih.biBitCount != 24) { f_close(&fil); echo("bad BMP"); return; }
-    int iw = ih.biWidth, ihgt = ih.biHeight > 0 ? ih.biHeight : -ih.biHeight;
-    int rb = (iw * 3 + 3) & ~3; bool td = ih.biHeight < 0;
-    int sx = iw > 240 ? iw * 10 / 240 : 10, sy = ihgt > 135 ? ihgt * 10 / 135 : 10;
-    int dw = iw > 240 ? 240 : iw, dh = ihgt > 135 ? 135 : ihgt;
-    int ox = (240 - dw) / 2, oy = (135 - dh) / 2;
-    uint8_t line[240 * 3 + 4];
-    f_lseek(&fil, fh.bfOffBits);
-    lcd_set_window(ox, oy, ox + dw - 1, oy + dh - 1);
-    lcd_write_cmd(0x2C);
-    for (int ly = 0; ly < dh; ly++) {
-        int by = td ? ly * sy / 10 : ihgt - 1 - ly * sy / 10;
-        f_lseek(&fil, fh.bfOffBits + (FSIZE_t)by * rb);
-        f_read(&fil, line, rb, &br);
-        for (int lx = 0; lx < dw; lx++) {
-            uint8_t *px = &line[lx * sx / 10 * 3];
-            lcd_write_data16(((px[2] >> 3) << 11) | ((px[1] >> 2) << 5) | (px[0] >> 3));
-        }
-    }
-    f_close(&fil);
+    if (!bmp_show(arg)) { echo("open/bad BMP"); return; }
     while (uart_read_byte() >= 0);
     while (uart_read_byte() < 0) sleep_ms(50);
     while (uart_read_byte() >= 0);
@@ -110,6 +116,30 @@ static void cmd_sysinfo(const char *arg) {
 static void cmd_clear(const char *arg) {
     (void)arg;
     console_clear();
+}
+
+static void cmd_uptime(const char *arg) {
+    (void)arg;
+    uint32_t ms = to_ms_since_boot(get_absolute_time());
+    char s[32]; snprintf(s, 32, "Uptime: %lus", ms / 1000);
+    echo(s);
+}
+
+static void cmd_echo(const char *arg) {
+    if (!arg) { echo(""); return; }
+    echo(arg);
+}
+
+static void cmd_setcolor(const char *arg) {
+    /* 用法: setcolor <fg> <bg>  (0-65535 RGB565) */
+    if (!arg || !*arg) { echo("usage: setcolor <fg> <bg> (RGB565)"); return; }
+    char *end;
+    long fg = strtol(arg, &end, 0);
+    if (*end != ' ') { echo("usage: setcolor <fg> <bg>"); return; }
+    long bg = strtol(end + 1, NULL, 0);
+    console_set_color((uint16_t)fg, (uint16_t)bg);
+    console_draw();
+    echo("color set");
 }
 
 static void cmd_snake(const char *arg) {
@@ -190,6 +220,14 @@ static int _file_complete(const char *tok, char *out, int outsz)
     return n;
 }
 
+/* ---- Good: 自我鼓励 ---- */
+static void cmd_good(const char *arg)
+{
+    (void)arg;
+    echo("Good! Keep going -- you're doing great!");
+    echo("Believe in yourself. One step at a time.");
+}
+
 void commands_register_all(void)
 {
     shell_register("ls",      "list files",       cmd_ls);
@@ -198,6 +236,10 @@ void commands_register_all(void)
     shell_register("free",    "SD free space",    cmd_free);
     shell_register("sysinfo", "system info",      cmd_sysinfo);
     shell_register("clear",   "clear screen",     cmd_clear);
+    shell_register("uptime",  "system uptime",    cmd_uptime);
+    shell_register("echo",    "print text",       cmd_echo);
+    shell_register("setcolor","set terminal color", cmd_setcolor);
     shell_register("snake",   "play snake",       cmd_snake);
+    shell_register("good",    "a word of praise", cmd_good);
     shell_set_arg_completer(_file_complete);
 }
