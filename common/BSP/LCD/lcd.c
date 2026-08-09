@@ -162,20 +162,24 @@ void lcd_clear(uint16_t color)
 void lcd_fill(uint16_t sx, uint16_t sy, uint16_t ex, uint16_t ey, uint16_t color)
 {
     uint16_t i;
-    uint16_t j;
     uint16_t width;
     uint16_t height;
 
     width = ex - sx + 1;
     height = ey - sy + 1;
+    uint32_t npix = (uint32_t)width * height;
+
     lcd_set_window(sx, sy, ex, ey);
 
-    for (i = 0; i < height; i++)
-    {
-        for (j = 0; j < width; j++)
-        {
-            lcd_write_data16(color);
-        }
+    /* 批量填充: 预先在全局 lcd_buf 填一块像素, 循环写块, 避免逐像素 CS/SPI 开销 */
+    uint8_t hi = (uint8_t)(color >> 8), lo = (uint8_t)(color & 0xFF);
+    static const uint32_t CHUNK_PX = 512;
+    for (i = 0; i < CHUNK_PX * 2; i += 2) { lcd_buf[i] = hi; lcd_buf[i + 1] = lo; }
+
+    while (npix > 0) {
+        uint32_t n = (npix > CHUNK_PX) ? CHUNK_PX : npix;
+        lcd_write_data(lcd_buf, (int)(n * 2));
+        npix -= n;
     }
     lcd_set_window(sx, sy, ex, ey);
 }
@@ -370,7 +374,7 @@ void lcd_draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t 
         distance = delta_y; 
     }
     
-    for (t = 0;t <= distance + 1;t++ )      /* 画线输出 */
+    for (t = 0;t <= distance;t++ )          /* 画线输出 (distance+1 个点, 原实现多画一点造成越界) */
     {
         lcd_draw_pixel(urow,ucol,color);    /* 画点 */ 
         xerr += delta_x ; 
@@ -436,15 +440,15 @@ void lcd_draw_circle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
 
     while (a <= b)
     {
-        lcd_draw_pixel(x0 - b, y0 - a, color);
-        lcd_draw_pixel(x0 + b, y0 - a, color);
-        lcd_draw_pixel(x0 - a, y0 + b, color);
-        lcd_draw_pixel(x0 - b, y0 - a, color);
-        lcd_draw_pixel(x0 - a, y0 - b, color);
-        lcd_draw_pixel(x0 + b, y0 + a, color);
-        lcd_draw_pixel(x0 + a, y0 - b, color);
+        /* 8 对称像素点 (原实现重复画 (x0-b,y0-a) 与 (x0+a,y0+b), 漏画其余对称点) */
         lcd_draw_pixel(x0 + a, y0 + b, color);
+        lcd_draw_pixel(x0 + b, y0 + a, color);
+        lcd_draw_pixel(x0 + b, y0 - a, color);
+        lcd_draw_pixel(x0 + a, y0 - b, color);
+        lcd_draw_pixel(x0 - a, y0 - b, color);
+        lcd_draw_pixel(x0 - b, y0 - a, color);
         lcd_draw_pixel(x0 - b, y0 + a, color);
+        lcd_draw_pixel(x0 - a, y0 + b, color);
         a++;
 
         if (di < 0)
@@ -456,8 +460,6 @@ void lcd_draw_circle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
             di += 10 + 4 * (a - b);
             b--;
         }
-
-        lcd_draw_pixel(x0 + a, y0 + b, color);
     }
 }
 

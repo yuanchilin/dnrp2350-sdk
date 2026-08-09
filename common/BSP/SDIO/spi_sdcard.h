@@ -17,5 +17,6 @@
 #include "my_debug.h"
 
 void sd_init(uint32_t *free, uint32_t *total);
+void sd_free_kb(uint32_t *free, uint32_t *total);   /* 不重挂载, 只读已挂载卷("0:")剩余空间 */
 
 #endif

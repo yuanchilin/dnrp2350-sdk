@@ -114,31 +114,32 @@ spi_t *spi_get_by_num(size_t num)
  */
 void sd_init(uint32_t *free, uint32_t *total)
 {
-    pSD = sd_get_by_num(0);     /* 获取SD卡实例 */
-    uint8_t fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
+    if (free)  *free  = 0;
+    if (total) *total = 0;
 
-    if (FR_OK != fr)
-    {
-        panic("f_mount error: %s (%d)\n", FRESULT_str(fr), fr);
-    }
+    pSD = sd_get_by_num(0);     /* 获取SD卡实例 */
+    if (!pSD) return;
+
+    uint8_t fr = f_mount(&pSD->fatfs, pSD->pcName, 1);
+    if (fr != FR_OK) return;    /* 无卡/拔卡 → 静默返回 (不再 panic 整机) */
+
+    sd_free_kb(free, total);
+    /* 注意: 此处不调用 f_unmount — 主程序往往已挂载同一卷, 卸载会使其后所有文件操作失败 */
+}
+
+/* 只读已挂载卷剩余空间: 不执行 mount/unmount, 避免破坏 shell 正在使用的文件系统 */
+void sd_free_kb(uint32_t *free, uint32_t *total)
+{
+    if (free)  *free  = 0;
+    if (total) *total = 0;
 
     uint32_t fre_clust = 0, fre_sect = 0, tot_sect = 0;
+    FATFS *fs;
 
-    FATFS *fs;                  /* FatFs文件系统结构体 */
+    if (f_getfree("0:", &fre_clust, &fs) != FR_OK) return;
 
-    fr = f_getfree(pSD->pcName, &fre_clust, &fs);   /* 获取剩余空间（单位：簇） */
-
-    if (FR_OK == fr)            /* 计算剩余空间（单位：字节） */
-    {
-        fre_sect = fre_clust * fs->csize;
-        tot_sect = (fs->n_fatent - 2) * fs->csize;
-        *free = fre_sect >> 1;	/* 单位为KB */
-        *total = tot_sect >> 1;	/* 单位为KB */
-    } 
-    else 
-    {
-        printf("f_getfree error: %s (%d)\n", FRESULT_str(fr), fr);
-    }
-
-    f_unmount(pSD->pcName);     /* 卸载文件系统 */
+    fre_sect = fre_clust * fs->csize;
+    tot_sect = (fs->n_fatent - 2) * fs->csize;
+    if (free)  *free  = fre_sect >> 1;	/* 单位为KB */
+    if (total) *total = tot_sect >> 1;	/* 单位为KB */
 }

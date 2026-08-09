@@ -121,7 +121,7 @@ int main(void){
     FATFS fs;bool sd_ok=(f_mount(&fs,"0:",1)==FR_OK);
     shell_init("$ ");shell_set_ansi(true);
     shell_set_echo_cb(echo_colored);
-    shell_set_output_cb((void (*)(const char*))out_colored);
+    shell_set_output_cb(out_colored);
     /* 启动初始化信息: 先于照片等待打印, 复位后串口即可见 */
     shell_print("\r\n");
     shell_print("== DNRP2350A PIO LCD Terminal ==\r\n");

@@ -64,7 +64,14 @@ void shell_register(const char *name, const char *help, shell_cmd_fn fn)
 
 void shell_print(const char *s)
 {
-    while (*s) { uart_send_byte((uint8_t)*s++); }
+    /* 逐字节 uart_putc 有较大每字符延迟; 分块批量写, 大幅提升 ls/cat 等长输出速度 */
+    char buf[128];
+    uint16_t n = 0;
+    while (*s) {
+        buf[n++] = *s++;
+        if (n == sizeof(buf)) { uart_send_buf((const uint8_t *)buf, n); n = 0; }
+    }
+    if (n) uart_send_buf((const uint8_t *)buf, n);
 }
 
 void shell_printf(const char *fmt, ...)
@@ -281,15 +288,15 @@ void shell_poll(void)
             else if (c2 == 'B') do_hist = -1; /* down: 回更新/新行 (索引 -1) */
         }
         if (do_hist) {
-            /* 临时槽: 保存当前未执行输入, 供 down 回到新行时恢复 */
-            {
-                int k = 0;
-                while (k < pos && k < MAX_CMD - 1) { hist_tmp[k] = cmd[k]; k++; }
-                hist_tmp[k] = '\0';
-            }
-
             int new_pos = hist_pos + do_hist;
             if (new_pos >= 0 && new_pos <= hist_cnt) {
+                /* 临时槽: 只在首次离开编辑行 (hist_pos==0) 时快照未执行输入,
+                   否则连续 UP 会把历史覆盖进临时槽, 导致 DOWN 回不到原输入 */
+                if (hist_pos == 0) {
+                    int k = 0;
+                    while (k < pos && k < MAX_CMD - 1) { hist_tmp[k] = cmd[k]; k++; }
+                    hist_tmp[k] = '\0';
+                }
                 hist_pos = new_pos;
                 /* 清空当前行并回显 */
                 for (int i = 0; i < pos; i++) { shell_print("\b \b"); if (_echo_cb) _echo_cb('\b'); }
@@ -306,6 +313,14 @@ void shell_poll(void)
         }
     } else if (ch == '\t') {
         _tab_complete(cmd, &pos);
+    } else if (ch == 0x03) {        /* Ctrl+C → 取消当前行并重绘提示符 */
+        while (pos > 0) { pos--; shell_printf("\b \b"); if (_echo_cb) _echo_cb('\b'); }
+        shell_printf("^C\r\n");
+        if (_echo_cb) { _echo_cb('^'); _echo_cb('C'); _echo_cb('\n'); }
+        shell_printf("%s", prompt_str);
+        if (_ansi) shell_print(CLR_INPUT);
+    } else if (ch == 0x15) {        /* Ctrl+U → 从光标处清空到行首 */
+        while (pos > 0) { pos--; shell_printf("\b \b"); if (_echo_cb) _echo_cb('\b'); }
     } else if (ch == '\b' || ch == 0x7F) {
         if (pos > 0) { pos--; shell_printf("\b \b"); if (_echo_cb) _echo_cb('\b'); }
     } else if (ch >= ' ' && pos < MAX_CMD - 1) {

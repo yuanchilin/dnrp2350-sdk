@@ -16,7 +16,19 @@ $ROOT    = $PSScriptRoot
 $SDK     = "$ROOT\pico-sdk"
 $ARM_DIR = "$ROOT\arm-dev"
 
-# ---- 无参: 列出所有项目 ----
+# ---- 预检: 依赖工具与子模块 ----
+foreach ($tool in @("cmake", "ninja")) {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
+        Write-Host "缺少依赖工具: $tool (请安装并加入 PATH)" -ForegroundColor Red
+        exit 1
+    }
+}
+if (-not (Test-Path "$SDK\pico_sdk_init.cmake")) {
+    Write-Host "pico-sdk 缺失: 请先执行 'git submodule update --init --recursive'" -ForegroundColor Red
+    exit 1
+}
+
+# ---- 无参: 列出项目 ----
 if (-not $Proj) {
     Write-Host "用法: .\build.ps1 <项目名>`n"
     Get-ChildItem $ARM_DIR -Directory | ForEach-Object { Write-Host "  $($_.Name)" }
@@ -65,9 +77,9 @@ if ($needCfg) {
     $picotoolDir = "$ROOT\tools\picotool"
     if (Test-Path "$picotoolDir\picotoolConfig.cmake") {
         Write-Host "  使用公共 picotool: $picotoolDir"
-        cmake -S $projDir -B $buildDir -G Ninja "-DPICO_SDK_PATH=$SDK" "-DCMAKE_PREFIX_PATH=$picotoolDir"
+        cmake -S $projDir -B $buildDir -G Ninja "-DCMAKE_PREFIX_PATH=$picotoolDir"
     } else {
-        cmake -S $projDir -B $buildDir -G Ninja "-DPICO_SDK_PATH=$SDK"
+        cmake -S $projDir -B $buildDir -G Ninja
     }
     if ($LASTEXITCODE -ne 0) { Write-Host "CMake 配置失败" -ForegroundColor Red; exit 1 }
 } else {

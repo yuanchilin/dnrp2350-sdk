@@ -50,23 +50,27 @@ try {
 }
 
 # ---- 2. 轮询 RP2350 盘符并拷贝 UF2 ----
+# 单次 WMI 查询移动盘 (DriveType=2) 再过滤卷标, 替代逐盘符轮询的串行开销
 Write-Host "   等待 RP2350 盘符..."
 $ok = $false
-for ($i = 0; $i -lt 60; $i++) {
-    Start-Sleep -Milliseconds 500
-    foreach ($d in @("D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z")) {
-        $vol = (Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='${d}:'").VolumeName
-        if ($vol -match "RP2|RP2350") {
-            Copy-Item $Uf2 "${d}:\" -Force
-            $ok = $true
-            Write-Host "   烧录成功 (${d}:)" -ForegroundColor Green
+$waitMs = 30000; $poll = 250
+for ($elapsed = 0; $elapsed -le $waitMs; $elapsed += $poll) {
+    Start-Sleep -Milliseconds $poll
+    $drives = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=2" |
+        Where-Object { $_.DeviceID -and $_.VolumeName -match "^(RP2350|RPI-RP2)$" }
+    foreach ($d in $drives) {
+        try {
+            Copy-Item $Uf2 "$($d.DeviceID)\" -Force -ErrorAction Stop
+            $ok = $d.DeviceID
             break
-        }
+        } catch { }
     }
     if ($ok) { break }
 }
-if (-not $ok) {
-    Write-Host "   超时 (30s) 未检测到 RP2350" -ForegroundColor Red
+if ($ok) {
+    Write-Host "   烧录成功 ($ok)" -ForegroundColor Green
+} else {
+    Write-Host "   超时 (${waitMs}s) 未检测到 RP2350" -ForegroundColor Red
     Write-Host "   手动: 按住 BOOT → 点 RESET → 松开" -ForegroundColor Yellow
     exit 1
 }

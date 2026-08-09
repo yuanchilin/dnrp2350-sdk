@@ -8,11 +8,15 @@
 #include <string.h>
 #include <stdio.h>
 
+/* 缓冲固定尺寸 — 调用方传入的 cols/rows 必须不超过此上限, 否则缓冲溢出 */
+#define CONSOLE_MAX_COLS 64
+#define CONSOLE_MAX_ROWS 16
+
 static int  _cols, _rows, _fw, _fh, _fs;
 static int  _cx, _cy;
-static char _screen[16][64];
-static uint16_t _scolor[16][64];   /* per-字符前景色, 与 _screen 对应 (支持行内多色/滚动还原) */
-static char _scroll[128][64];
+static char _screen[CONSOLE_MAX_ROWS][CONSOLE_MAX_COLS];
+static uint16_t _scolor[CONSOLE_MAX_ROWS][CONSOLE_MAX_COLS];   /* per-字符前景色, 与 _screen 对应 (支持行内多色/滚动还原) */
+static char _scroll[128][CONSOLE_MAX_COLS];
 static int  _scroll_idx;
 
 /* 默认配色: 灰字黑底 (与串口终端默认前景一致) */
@@ -38,6 +42,10 @@ void console_set_pio_mode(console_char_fn render, console_flush_fn flush)
 
 void console_init(int cols, int rows, int fw, int fh, uint8_t fs)
 {
+    if (cols < 1) cols = 1;
+    if (rows < 1) rows = 1;
+    if (cols > CONSOLE_MAX_COLS) cols = CONSOLE_MAX_COLS;   /* 防越界: 缓冲尺寸固定 */
+    if (rows > CONSOLE_MAX_ROWS) rows = CONSOLE_MAX_ROWS;
     _cols = cols; _rows = rows; _fw = fw; _fh = fh; _fs = fs;
     _cx = 0; _cy = 0;
     for (int i = 0; i < rows; i++) {

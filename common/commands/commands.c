@@ -92,8 +92,13 @@ static void cmd_cat(const char *arg) {
 static void cmd_view(const char *arg) {
     if (!_sd_ok || !arg || !*arg) { echo("usage: view <file.bmp>"); return; }
     if (!bmp_show(arg)) { echo("open/bad BMP"); return; }
+    /* 清残留输入后等一个按键返回; 超时 15s 自动跳过, 避免开机/复位后终端一直卡住 */
     while (uart_read_byte() >= 0);
-    while (uart_read_byte() < 0) sleep_ms(50);
+    uint32_t t0 = to_ms_since_boot(get_absolute_time());
+    while (uart_read_byte() < 0) {
+        if (to_ms_since_boot(get_absolute_time()) - t0 > 15000) break;
+        sleep_ms(50);
+    }
     while (uart_read_byte() >= 0);
     console_draw();
 }
@@ -101,7 +106,8 @@ static void cmd_view(const char *arg) {
 static void cmd_free(const char *arg) {
     (void)arg;
     if (!_sd_ok) { echo("no SD"); return; }
-    uint32_t fk, tk; sd_init(&fk, &tk);
+    /* 用只读剩余空间 API: 不 mount/unmount, 避免卸载 main 已挂载的卷导致后续命令失败 */
+    uint32_t fk, tk; sd_free_kb(&fk, &tk);
     char s[32]; snprintf(s, 32, "Free: %luMB  Total: %luMB", fk >> 10, tk >> 10);
     echo(s);
 }
@@ -144,6 +150,7 @@ static void cmd_setcolor(const char *arg) {
 
 static void cmd_snake(const char *arg) {
     (void)arg;
+    srand((unsigned)(to_ms_since_boot(get_absolute_time()) & 0xFFFF) ^ (unsigned)(uintptr_t)arg);
     echo("Snake! WASD, Q=quit");
     int sx[256], sy[256], len = 3, dx = 1, dy = 0, fx = 10, fy = 3;
     sx[0] = 5; sy[0] = 3; sx[1] = 4; sy[1] = 3; sx[2] = 3; sy[2] = 3;
