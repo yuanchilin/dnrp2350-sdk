@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/UART/uart.h"
 #include "BSP/SDIO/spi_sdcard.h"
@@ -96,6 +97,7 @@ static void cmd_view(const char *arg) {
     while (uart_read_byte() >= 0);
     uint32_t t0 = to_ms_since_boot(get_absolute_time());
     while (uart_read_byte() < 0) {
+        watchdog_update();          /* 喂狗: 该等待最长 15s, 超过看门狗 5s 需喂, 否则复位死循环 */
         if (to_ms_since_boot(get_absolute_time()) - t0 > 15000) break;
         sleep_ms(50);
     }
@@ -156,6 +158,7 @@ static void cmd_snake(const char *arg) {
     sx[0] = 5; sy[0] = 3; sx[1] = 4; sy[1] = 3; sx[2] = 3; sy[2] = 3;
     lcd_fill(0, 0, 239, 120, BLACK);
     while (1) {
+        watchdog_update();          /* 喂狗: 贪吃蛇是长循环, 否则 5s 后看门狗复位 */
         int ch = uart_read_byte();
         if (ch >= 0) {
             switch (toupper(ch)) {

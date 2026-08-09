@@ -16,6 +16,7 @@ static int  _cols, _rows, _fw, _fh, _fs;
 static int  _cx, _cy;
 static char _screen[CONSOLE_MAX_ROWS][CONSOLE_MAX_COLS];
 static uint16_t _scolor[CONSOLE_MAX_ROWS][CONSOLE_MAX_COLS];   /* per-字符前景色, 与 _screen 对应 (支持行内多色/滚动还原) */
+static uint16_t _sbkg[CONSOLE_MAX_ROWS][CONSOLE_MAX_COLS];     /* per-字符背景色 (TUI 反显/高亮用) */
 static char _scroll[128][CONSOLE_MAX_COLS];
 static int  _scroll_idx;
 
@@ -36,6 +37,14 @@ static console_char_fn  _render_fn = NULL;
 static console_flush_fn _flush_fn  = NULL;
 
 void console_set_color(uint16_t fg, uint16_t bg) { _fg = fg; _bg = bg; }
+
+void console_put_cell(int x, int y, char ch, uint16_t fg, uint16_t bg)
+{
+    if (x < 0 || x >= _cols || y < 0 || y >= _rows) return;
+    _screen[y][x] = (ch >= ' ') ? ch : ' ';
+    _scolor[y][x] = fg;
+    _sbkg[y][x]   = bg;
+}
 
 void console_set_pio_mode(console_char_fn render, console_flush_fn flush)
     { _render_fn = render; _flush_fn = flush; }
@@ -69,12 +78,12 @@ void console_draw_line(int y)
     if (_render_fn && _flush_fn) {
         for (int x = 0; x < _cols; x++) {
             char ch = _screen[y][x];
-            _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _bg);
+            _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _sbkg[y][x]);
         }
         _flush_fn(0, y * _fh, _cols * _fw, _fh);
         return;
     }
-    lcd_fill(0, y * _fh, _cols * _fw - 1, (y + 1) * _fh - 1, _bg);
+    lcd_fill(0, y * _fh, _cols * _fw - 1, (y + 1) * _fh - 1, _sbkg[y][0]);
     for (int x = 0; x < _cols; x++) {
         char ch = _screen[y][x];
         if (ch >= ' ') lcd_show_char(x * _fw, y * _fh, ch, _fs, 1, _scolor[y][x]);
@@ -86,11 +95,11 @@ static void console_draw_char(int x, int y)
 {
     char ch = _screen[y][x];
     if (_render_fn && _flush_fn) {
-        _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _bg);
+        _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _sbkg[y][x]);
         _flush_fn(x * _fw, y * _fh, _fw, _fh);
         return;
     }
-    lcd_fill(x * _fw, y * _fh, (x + 1) * _fw - 1, (y + 1) * _fh - 1, _bg);
+    lcd_fill(x * _fw, y * _fh, (x + 1) * _fw - 1, (y + 1) * _fh - 1, _sbkg[y][x]);
     if (ch >= ' ') lcd_show_char(x * _fw, y * _fh, ch, _fs, 1, _scolor[y][x]);
 }
 
@@ -120,9 +129,10 @@ static void _scroll_up(void)
     for (int i = 0; i < _rows - 1; i++) {
         memcpy(_screen[i], _screen[i + 1], _cols);
         memcpy(_scolor[i], _scolor[i + 1], _cols * sizeof(uint16_t));
+        memcpy(_sbkg[i],  _sbkg[i + 1],  _cols * sizeof(uint16_t));
     }
     memset(_screen[_rows - 1], ' ', _cols);
-    for (int j = 0; j < _cols; j++) _scolor[_rows - 1][j] = _fg;
+    for (int j = 0; j < _cols; j++) { _scolor[_rows - 1][j] = _fg; _sbkg[_rows - 1][j] = _bg; }
     /* 逐行重绘: 必须重画 fb 后再 flush, 否则 PIO 模式下滚动后旧内容不更新 */
     for (int y = 0; y < _rows; y++) console_draw_line(y);
 }

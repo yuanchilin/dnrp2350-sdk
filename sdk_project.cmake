@@ -7,7 +7,7 @@
 #     include(../../sdk_project.cmake)           # 本模板
 #     project(<名字> C CXX ASM)                  # 必须在顶层调用 project()
 #     drp_project(<名字>
-#         BSP    <模块...>                        # shell console commands bmp + BSP/LCD LED SPI ...
+#         BSP    <模块...>                        # shell console commands tui bmp + BSP/LCD LED SPI ...
 #         [SRCS  <额外源文件...>]                 # 如 core1.c hid_keyboard.c payload.c
 #         [LIBS  <额外链接库...>]                 # pico_multicore hardware_pio tinyusb_device ...
 #         [STDIO_UART]                           # 启用 UART stdio (默认关)
@@ -50,6 +50,8 @@ function(drp_project PROJ_NAME)
                 set(_m_dir ${DNRP_COMMON_DIR}/console)
             elseif(_m STREQUAL "commands")
                 set(_m_dir ${DNRP_COMMON_DIR}/commands)
+            elseif(_m STREQUAL "tui")
+                set(_m_dir ${DNRP_COMMON_DIR}/tui)
             else()
                 set(_m_dir ${DNRP_COMMON_DIR}/BSP/${m})
             endif()

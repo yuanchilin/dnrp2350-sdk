@@ -14,6 +14,7 @@ typedef void (*console_char_fn)(int x, int y, char ch, uint16_t fg, uint16_t bg)
 typedef void (*console_flush_fn)(int x, int y, int w, int h);
 void console_set_pio_mode(console_char_fn render, console_flush_fn flush);
 void console_set_color(uint16_t fg, uint16_t bg);  /* 设置前景/背景色 */
+void console_put_cell(int x, int y, char ch, uint16_t fg, uint16_t bg);  /* 显式颜色写入单格 */
 void console_clear(void);
 void console_putc(char c);
 void console_print(const char *s);

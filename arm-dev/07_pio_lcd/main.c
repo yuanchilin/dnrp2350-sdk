@@ -9,6 +9,7 @@
 #include "hardware/pio.h"
 #include "hardware/dma.h"
 #include "hardware/sync.h"
+#include "hardware/watchdog.h"
 #include "lcd_spi.pio.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
@@ -17,6 +18,8 @@
 #include "console/console.h"
 #include "shell/shell.h"
 #include "commands/commands.h"
+#include "tui/tui.h"
+#include "tui/tui_lcd.h"
 #include "ff.h"
 
 #define LCD_W 240
@@ -74,7 +77,10 @@ static void pio_flush(int x,int y,int w,int h){
     __dsb();
     dma_channel_set_read_addr(dma_ch,packed,false);
     dma_channel_set_trans_count(dma_ch,nwords,true);
-    dma_channel_wait_for_finish_blocking(dma_ch);
+    uint32_t t0=to_ms_since_boot(get_absolute_time());
+    while(dma_channel_is_busy(dma_ch)){
+        if(to_ms_since_boot(get_absolute_time())-t0>500){ dma_channel_abort(dma_ch); break; }
+    }
     LCD_CS(1);gpio_set_function(MOSI,GPIO_FUNC_SPI);gpio_set_function(SCK,GPIO_FUNC_SPI);
 }
 
@@ -87,10 +93,83 @@ static void pio_flush_cb(int x,int y,int w,int h){
 static void echo_colored(char c){ console_set_color(0x03E0, BLACK); console_putc(c); }
 static void out_colored(const char *s){ console_set_color(GRAY, BLACK); console_write_ansi(s); console_putc('\n'); }
 
+/* ---- TUI Demo: 全屏终端界面 (tui 命令进入, Esc 退回 shell) ---- */
+static int tui_demo_about(void)
+{
+    tui_fill(1, 1, TUI_ROWS, TUI_COLS, ' ');
+    tui_title("About");
+    tui_move(2, 1);  tui_printf("DNRP2350A RP2350A M33 150MHz");
+    tui_move(3, 1);  tui_printf("LCD 240x135 ST7789 PIO+DMA");
+    tui_move(4, 1);  tui_printf("UART CH343 115200 8N1");
+    tui_move(5, 1);  tui_printf("SD SPI mode FatFs");
+    tui_move(6, 1);  tui_printf("TUI ANSI widgets");
+    tui_hint("Esc:back  any:key");
+    tui_event_t e = tui_getch();
+    return (e.type == TUI_KEY_CTRLC) ? TUI_QUIT_CTRC : 0;
+}
+
+static int tui_demo_files(void)
+{
+    char lab[20][40];
+    const char *items[20];
+    int n = 0;
+    DIR dir; FILINFO fno;
+    if (f_opendir(&dir, "/") == FR_OK) {
+        while (n < 20 && f_readdir(&dir, &fno) == FR_OK && fno.fname[0]) {
+            if (fno.fattrib & AM_DIR)
+                snprintf(lab[n], sizeof(lab[n]), "%-14.14s %7s", fno.fname, "<DIR>");
+            else
+                snprintf(lab[n], sizeof(lab[n]), "%-14.14s %7lu", fno.fname, (unsigned long)fno.fsize);
+            items[n] = lab[n];
+            n++;
+        }
+        f_closedir(&dir);
+    }
+
+    if (n == 0) {
+        tui_fill(1, 1, TUI_ROWS, TUI_COLS, ' ');
+        tui_title("SD root");
+        tui_move(4, 1);  tui_printf("No SD card / no files");
+        tui_hint("any:back");
+        tui_event_t e = tui_getch();
+        return (e.type == TUI_KEY_CTRLC) ? TUI_QUIT_CTRC : 0;
+    }
+
+    int sel = 0;
+    while (1) {
+        tui_fill(1, 1, TUI_ROWS, TUI_COLS, ' ');
+        int r = tui_menu("SD root", items, n, &sel);
+        if (r == TUI_QUIT_CTRC) return TUI_QUIT_CTRC;   /* Ctrl+C 直接退出 TUI */
+        if (r < 0) return 0;   /* Esc 回主菜单 */
+    }
+}
+
+static void cmd_tui(const char *arg)
+{
+    (void)arg;
+    tui_start();
+    tui_lcd_attach();
+    const char *items[] = { "About", "SD files", "Exit TUI" };
+    int sel = 0;
+    while (1) {
+        tui_fill(1, 1, TUI_ROWS, TUI_COLS, ' ');
+        int r = tui_menu("DNRP2350A TUI", items, 3, &sel);
+        if (r < 0)                       break;   /* Esc / Ctrl+C 退出 TUI */
+        if (r == 0)      { if (tui_demo_about() == TUI_QUIT_CTRC) break; }
+        else if (r == 1) { if (tui_demo_files() == TUI_QUIT_CTRC) break; }
+        else             break;   /* Exit TUI */
+    }
+    tui_lcd_detach();
+    tui_stop();
+}
+
 int main(void){
     led_init();LED(0);
     spi1_init();lcd_init();
-    uart_init_dev();sleep_ms(50);while(uart_read_byte()>=0);
+    uart_init_dev();sleep_ms(50);while(uart_read_byte()>=0);uart_send_string("[V2]\r\n");
+
+    /* 看门狗: 卡死 5s 自动复位, 避免用户手动 RESET */
+    watchdog_enable(5000, 1);
 
     /* PIO+DMA (已验证: lcd_spi8_program) */
     if(pio_can_add_program(pio0,&lcd_spi8_program)){
@@ -128,11 +207,12 @@ int main(void){
     shell_print("SD: "); shell_print(sd_ok ? "OK" : "ERR"); shell_print("\r\n");
     shell_print("Type 'help' for commands\r\n");
     commands_init(sd_ok);commands_register_all();
+    shell_register("tui", "fullscreen TUI demo", cmd_tui);
     if(sd_ok)commands_view_file("/photo.bmp");
 
     console_println("07 PIO Terminal");
     console_println("Type help");
 
-    while(1){shell_poll();sleep_ms(1);}
+    while(1){watchdog_update();shell_poll();sleep_ms(1);}
     return 0;
 }
