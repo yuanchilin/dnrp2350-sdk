@@ -657,7 +657,7 @@ static uint32_t sd_go_idle_state(sd_card_t *pSD) {
         busy_wait_us(100 * 1000);
         sd_acquire(pSD);
     }
-    printf("response:%d,\r\n",response);
+    printf("response:%lu,\r\n",(unsigned long)response);
     return response;
 }
 

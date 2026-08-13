@@ -4,9 +4,9 @@
  */
 
 #include "pico/stdlib.h"
-#include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
+#include "BSP/LCD/lcd.h"
 #include "BSP/UART/uart.h"
 #include "console/console.h"
 #include "shell/shell.h"
@@ -15,15 +15,23 @@
 
 int main(void)
 {
+    /* 板级初始化: UART 先就绪, 保证串口日志可见 */
     led_init(); LED(0);
-    spi1_init(); lcd_init();
-    uart_init_dev(); sleep_ms(50); while (uart_read_byte() >= 0);
+    spi1_init();
+    lcd_init();
+
+    uart_init_dev();
+    sleep_ms(50);
+    while (uart_read_byte() >= 0);   /* 清 UART 噪声 */
+
     console_init(30, 8, 8, 16, 16);
 
     FATFS fs;
     bool sd_ok = (f_mount(&fs, "0:", 1) == FR_OK);
+
     shell_init("$ ");
-    shell_set_echo_cb(console_putc);  /* 串口输入 → LCD 同步 */
+    shell_set_echo_cb(console_putc);
+
     commands_init(sd_ok);
     commands_register_all();
 

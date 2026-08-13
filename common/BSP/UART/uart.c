@@ -25,7 +25,7 @@ static void uart_rx_irq(void)
             rx_buf[rx_head] = ch;
             rx_head = next;
         }
-        /* 缓冲区满则丢弃最旧数据 */
+        /* 缓冲区满则丢弃新数据 (保留最旧, 与环形缓冲语义一致) */
     }
 }
 

@@ -44,3 +44,6 @@ venv/
 *.log
 _deps/
 photo.bmp
+
+# ---- 工具编译产物 (rawkey_listener.ps1 每次自动重建) ------------------------
+tools/RawKeyListener.dll

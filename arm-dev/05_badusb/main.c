@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
+#include "pico/bootrom.h"
+#include "hardware/watchdog.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
@@ -15,6 +17,7 @@
 #include "BSP/SDIO/spi_sdcard.h"
 #include "BSP/KEY/key.h"
 #include "hid_keyboard.h"
+#include "tusb.h"
 #include "payload.h"
 #include "sample_script.h"
 #include "ff.h"
@@ -48,7 +51,7 @@ static void scan_scripts(void)
         if (fno.fattrib & AM_DIR) continue;
         char *e = strrchr(fno.fname, '.');
         if (e && strcasecmp(e, ".txt") == 0) {
-            snprintf(files[file_cnt], MAX_NAME, "/%s", fno.fname);
+            snprintf(files[file_cnt], MAX_NAME, "/%.46s", fno.fname);
             file_cnt++;
         }
     }
@@ -80,6 +83,8 @@ static void run_script(const char *path)
 
     uart_printf("Executing: %s (%u bytes)\r\n", path, br);
 
+    LED(0);                         /* 注入进行中: LED 亮 */
+
     /* LCD 提示 */
     lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, RED);
     lcd_show_string(2, LCD_H - 18, 200, 16, 12, "INJECTING...", WHITE);
@@ -87,8 +92,16 @@ static void run_script(const char *path)
     /* 等待 USB 枚举 (最多等 5 秒) */
     uart_printf("Waiting for USB HID ready...\r\n");
     int wait_cnt = 0;
+    uint32_t last_state = 0;
     while (!hid_ready() && wait_cnt < 5000) {
         hid_task();
+        watchdog_update();          /* 等待枚举最长 5s, 需喂狗 */
+        uint32_t st = (tud_connected() ? 1u : 0u) | (tud_mounted() ? 2u : 0u) | (tud_ready() ? 4u : 0u);
+        if (st != last_state) {
+            uart_printf("USB state: conn=%d mount=%d ready=%d\r\n",
+                        tud_connected(), tud_mounted(), tud_ready());
+            last_state = st;
+        }
         sleep_ms(1);
         wait_cnt++;
     }
@@ -97,7 +110,7 @@ static void run_script(const char *path)
         uart_printf("Check: USB_OTG connected? Port correct?\r\n");
         lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, RED);
         lcd_show_string(2, LCD_H - 18, 200, 16, 12, "USB NOT READY!", WHITE);
-        LED(1);
+        LCD_PWR(0);   /* GPIO25 与 LED 复用, 高电平会关背光 — 保持错误提示可见 */
         return;
     }
     uart_printf("USB HID ready, injecting...\r\n");
@@ -148,7 +161,9 @@ static void draw_menu(void)
     lcd_show_string(2, LCD_H - 18, 230, 12, 12,
                     hid_ready() ? "USB HID: READY" : "USB HID: waiting...",
                     hid_ready() ? GREEN : RED);
-    LED(1);  /* 待命 (LED 灭 = ready) */
+    /* 保持背光点亮: GPIO25 与板载 LED 复用 (LCD_PWR 低电平 = 背光 ON),
+     * 用 LED(1) 会拉高 GPIO25 把背光关掉, 菜单将不可见 */
+    LCD_PWR(0);
 }
 
 /* ========================================================================== */
@@ -180,11 +195,19 @@ int main(void)
         uart_printf("SD mount failed!\r\n");
     } else {
         uart_printf("SD OK. ");
-        /* 自动写入示例脚本 (如不存在) */
+        /* 自动写入示例脚本: 不存在或与内置示例不一致时刷新
+         * (烧录新固件后 hello.txt 会自动更新, 用户自定义脚本请用别的文件名) */
         FIL test;
+        bool need_demo = false;
         if (f_open(&test, "/hello.txt", FA_READ) != FR_OK) {
+            need_demo = true;
+        } else {
+            need_demo = (f_size(&test) != SAMPLE_PAYLOAD_SIZE);
+            f_close(&test);
+        }
+        if (need_demo) {
             uart_printf("Writing demo script... ");
-            if (f_open(&test, "/hello.txt", FA_WRITE | FA_CREATE_NEW) == FR_OK) {
+            if (f_open(&test, "/hello.txt", FA_WRITE | FA_CREATE_ALWAYS) == FR_OK) {
                 UINT bw;
                 f_write(&test, sample_payload, SAMPLE_PAYLOAD_SIZE, &bw);
                 f_close(&test);
@@ -203,6 +226,7 @@ int main(void)
     bool last_key = false;
 
     while (1) {
+        watchdog_update();
         hid_task();   /* TinyUSB 设备循环 */
 
         /* KEY1 物理按键 */
@@ -237,14 +261,20 @@ int main(void)
                     selected = selected < file_cnt ? selected : (file_cnt ? file_cnt - 1 : 0);
                     uart_printf("%d scripts found.\r\n", file_cnt);
                     draw_menu();
+                } else if (strcmp(cmd, "r") == 0 || strcmp(cmd, "reboot") == 0) {
+                    uart_printf("rebooting to bootloader...\r\n");
+                    sleep_ms(100);
+                    reset_usb_boot(0, 0);
                 } else if (strlen(cmd) > 0) {
-                    uart_printf("? n=next p=prev e=inject s=rescan\r\n> ");
+                    uart_printf("? n=next p=prev e=inject s=rescan r=reboot\r\n> ");
                 }
                 pos = 0;
             }
         } else if (ch == '\b' || ch == 0x7F) {
             if (pos > 0) { pos--; uart_printf("\b \b"); }
-        } else if (pos < 15) {
+        } else if (ch == 0x03 || ch == 0x15) {      /* Ctrl+C / Ctrl+U: 取消当前输入 */
+            pos = 0;
+        } else if (ch >= ' ' && pos < 15) {
             cmd[pos++] = (char)ch; uart_send_byte((uint8_t)ch);
         }
     }

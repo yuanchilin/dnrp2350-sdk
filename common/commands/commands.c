@@ -56,7 +56,7 @@ static const char *ls_color(const char *name, bool is_dir) {
 /* ls 行: 串口与 LCD 共用同一份 ANSI 串 (LCD 由 console_write_ansi 解析着色); 目录加 '/' 后缀 */
 static void echo_ls(const char *name, unsigned long size, bool is_dir) {
     char tmp[64];
-    snprintf(tmp, sizeof(tmp), "%s%-20s%s%s %6lu", ls_color(name, is_dir), name, is_dir ? "/" : "", ANSI_RESET, size);
+    snprintf(tmp, sizeof(tmp), "%s%-20.20s%s%s %6lu", ls_color(name, is_dir), name, is_dir ? "/" : "", ANSI_RESET, size);
     shell_print(tmp); shell_print("\r\n");
     console_write_ansi(tmp); console_putc('\n');
 }
@@ -110,7 +110,7 @@ static void cmd_free(const char *arg) {
     if (!_sd_ok) { echo("no SD"); return; }
     /* 用只读剩余空间 API: 不 mount/unmount, 避免卸载 main 已挂载的卷导致后续命令失败 */
     uint32_t fk, tk; sd_free_kb(&fk, &tk);
-    char s[32]; snprintf(s, 32, "Free: %luMB  Total: %luMB", fk >> 10, tk >> 10);
+    char s[48]; snprintf(s, sizeof(s), "Free: %luMB  Total: %luMB", fk >> 10, tk >> 10);
     echo(s);
 }
 
@@ -156,7 +156,7 @@ static void cmd_snake(const char *arg) {
     echo("Snake! WASD, Q=quit");
     int sx[256], sy[256], len = 3, dx = 1, dy = 0, fx = 10, fy = 3;
     sx[0] = 5; sy[0] = 3; sx[1] = 4; sy[1] = 3; sx[2] = 3; sy[2] = 3;
-    lcd_fill(0, 0, 239, 120, BLACK);
+    lcd_fill(0, 0, COLS * 8 - 1, ROWS * 16 - 1, BLACK);
     while (1) {
         watchdog_update();          /* 喂狗: 贪吃蛇是长循环, 否则 5s 后看门狗复位 */
         int ch = uart_read_byte();
@@ -179,7 +179,7 @@ static void cmd_snake(const char *arg) {
         for (int i = len; i > 0; i--) { sx[i] = sx[i - 1]; sy[i] = sy[i - 1]; }
         sx[0] = nx; sy[0] = ny;
         if (nx == fx && ny == fy) { len++; fx = rand() % COLS; fy = rand() % ROWS; }
-        lcd_fill(0, 0, 239, 120, BLACK);
+        lcd_fill(0, 0, COLS * 8 - 1, ROWS * 16 - 1, BLACK);
         for (int i = 0; i < len; i++)
             lcd_fill(sx[i] * 8, sy[i] * 16, sx[i] * 8 + 6, sy[i] * 16 + 14, GREEN);
         lcd_fill(fx * 8, fy * 16, fx * 8 + 6, fy * 16 + 14, RED);
@@ -208,7 +208,7 @@ static int _file_complete(const char *tok, char *out, int outsz)
     int n = 0;
     while (n < 16 && f_readdir(&dir, &fno) == FR_OK && fno.fname[0]) {
         if (tlen == 0 || strncmp(fno.fname, tok, tlen) == 0) {
-            snprintf(hits[n], 40, "%s", fno.fname);
+            snprintf(hits[n], 40, "%.39s", fno.fname);
             n++;
         }
     }
@@ -224,7 +224,7 @@ static int _file_complete(const char *tok, char *out, int outsz)
     shell_print("\r\n");
     char b[48];
     for (int i = 0; i < n; i++) {
-        snprintf(b, sizeof(b), "  %s", hits[i]);
+        snprintf(b, sizeof(b), "  %.39s", hits[i]);
         echo(b);
     }
     return n;

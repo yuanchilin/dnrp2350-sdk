@@ -127,6 +127,7 @@ void tui_box(int r1, int c1, int r2, int c2, const char *title)
     int w = c2 - c1 - 1;
     if (w <= 0) return;
     char bar[256];
+    if (w > (int)sizeof(bar) - 1) w = (int)sizeof(bar) - 1;   /* 防越界: 横线最多 255 */
     for (int i = 0; i < w; i++) bar[i] = '-';
     bar[w] = '\0';
 

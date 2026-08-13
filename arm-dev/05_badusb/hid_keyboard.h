@@ -31,6 +31,8 @@
 #define HID_KEY_DELETE      0x4C
 #define HID_KEY_HOME        0x4A
 #define HID_KEY_END         0x4D
+#define HID_KEY_PGUP        0x4B
+#define HID_KEY_PGDN        0x4E
 
 /* API */
 void hid_init(void);
@@ -38,6 +40,12 @@ bool hid_ready(void);                   /* USB 已枚举? */
 void hid_task(void);                    /* TinyUSB 设备任务 (需在主循环调用) */
 
 /* 发送按键 */
+/* ASCII 字符 → 基础 HID 键码 (字母/数字/常用符号, 不含 Shift; 大小写不敏感) */
+uint8_t hid_keycode(uint8_t ch);
+
+/* 组合键: modifiers + 最多 6 个键码同时按下 (如 CTRL+ALT+DEL) */
+void hid_key_press_multi(uint8_t modifiers, const uint8_t *keycodes, uint8_t count);
+
 void hid_key_press(uint8_t modifiers, uint8_t keycode);
 void hid_key_release(void);
 void hid_key_tap(uint8_t modifiers, uint8_t keycode);  /* 按下→释放 */

@@ -53,20 +53,26 @@ bool bmp_show(const char *path)
     /* 1. 读文件头 */
     bmp_file_hdr_t fhdr;
     fr = f_read(&file, &fhdr, sizeof(fhdr), &br);
-    if (fhdr.bfType != 0x4D42) {    /* 不是 BM 标识 */
+    if (fr != FR_OK || br != sizeof(fhdr) || fhdr.bfType != 0x4D42) {   /* 不是 BM 标识 */
         f_close(&file); return false;
     }
 
     /* 2. 读信息头 */
     bmp_info_hdr_t ihdr;
     fr = f_read(&file, &ihdr, sizeof(ihdr), &br);
-    if (ihdr.biBitCount != 24 || ihdr.biCompression != 0) {
+    if (fr != FR_OK || br != sizeof(ihdr) || ihdr.biBitCount != 24 || ihdr.biCompression != 0) {
         f_close(&file); return false;
     }
 
     int img_w = ihdr.biWidth;
     int img_h = (ihdr.biHeight > 0) ? ihdr.biHeight : -ihdr.biHeight;
+    if (img_w <= 0 || img_h <= 0 || img_w > (int)sizeof(line_buf) / 3) {
+        f_close(&file); return false;       /* 非法尺寸: 行缓冲只够 240 像素宽 */
+    }
     int row_bytes = (img_w * 3 + 3) & ~3;   /* 每行字节数 (4字节对齐) */
+    if (row_bytes > (int)sizeof(line_buf)) {
+        f_close(&file); return false;       /* 超出行缓冲 → 拒绝, 防止 f_read 越界写 */
+    }
     bool top_down = (ihdr.biHeight < 0);    /* 负高度 = 顶行在前 */
 
     /* 3. 缩放比例 */

@@ -59,7 +59,7 @@ void console_init(int cols, int rows, int fw, int fh, uint8_t fs)
     _cx = 0; _cy = 0;
     for (int i = 0; i < rows; i++) {
         memset(_screen[i], ' ', cols);
-        for (int j = 0; j < cols; j++) _scolor[i][j] = _fg;
+        for (int j = 0; j < cols; j++) { _scolor[i][j] = _fg; _sbkg[i][j] = _bg; }
     }
 }
 
@@ -67,7 +67,7 @@ void console_clear(void)
 {
     for (int i = 0; i < _rows; i++) {
         memset(_screen[i], ' ', _cols);
-        for (int j = 0; j < _cols; j++) _scolor[i][j] = _fg;
+        for (int j = 0; j < _cols; j++) { _scolor[i][j] = _fg; _sbkg[i][j] = _bg; }
     }
     _cx = _cy = 0;
     console_draw();
@@ -109,7 +109,7 @@ void console_draw(void)
         for (int y = 0; y < _rows; y++)
             for (int x = 0; x < _cols; x++) {
                 char ch = _screen[y][x];
-                _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _bg);
+                _render_fn(x, y, (ch >= ' ') ? ch : ' ', _scolor[y][x], _sbkg[y][x]);
             }
         _flush_fn(0, 0, _cols * _fw, _rows * _fh);
         return;
@@ -148,10 +148,12 @@ void console_putc(char c)
         if (_cx > 0) _cx--;
         _screen[_cy][_cx] = ' ';
         _scolor[_cy][_cx] = _fg;
+        _sbkg[_cy][_cx] = _bg;
         console_draw_char(_cx, _cy);
     } else if (c >= ' ') {
         if (_cx >= _cols) { _cx = 0; _cy++; if (_cy >= _rows) { _scroll_up(); _cy = _rows - 1; } }
         _scolor[_cy][_cx] = _fg;
+        _sbkg[_cy][_cx] = _bg;
         _screen[_cy][_cx++] = c;
         console_draw_char(_cx - 1, _cy);
     }

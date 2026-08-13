@@ -59,7 +59,7 @@ if (-not (Test-Path "$buildDir\CMakeCache.txt")) {
 } else {
     # 校验缓存源路径是否与当前项目一致 (防止历史坏缓存 D:/Downloads/RP)
     $cacheHome = Select-String -Path "$buildDir\CMakeCache.txt" -Pattern "^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$"
-    if ($cacheHome -and (Test-Path "$buildDir\CMakeCache.txt")) {
+    if ($cacheHome) {
         $cachedSrc = $cacheHome.Matches[0].Groups[1].Value
         # CMake 缓存路径用正斜杠写盘, $projDir 是反斜杠, 统一为小写正斜杠再比较, 避免每次误判重建
         $normalized = $projDir.Replace('\', '/').ToLowerInvariant()

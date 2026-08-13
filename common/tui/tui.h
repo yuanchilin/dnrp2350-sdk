@@ -63,4 +63,7 @@ int tui_menu(const char *title, const char **items, int n, int *sel);
  * fn 为 NULL 时解除镜像。 */
 void tui_set_mirror(void (*fn)(const char *buf, int len));
 
+/* ---- TUI 演示: 注册为 shell 命令 "tui" 即可使用 ---- */
+void tui_demo_run(const char *arg);
+
 #endif /* __TUI_H */

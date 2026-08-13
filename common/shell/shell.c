@@ -89,7 +89,7 @@ void shell_printf(const char *fmt, ...)
 static void _help_line(const char *name, const char *help)
 {
     char tmp[64];
-    snprintf(tmp, sizeof(tmp), "  " CLR_CMD "%-12s" ANSI_RESET " %s", name, help);
+    snprintf(tmp, sizeof(tmp), "  " CLR_CMD "%-12.12s" ANSI_RESET " %.31s", name, help);
     shell_print(tmp); shell_print("\r\n");          /* 串口: 命令名亮绿 */
     if (_out_cb) _out_cb(tmp);                       /* LCD: 同源 ANSI 串, 由 console_write_ansi 解析 */
 }
@@ -181,9 +181,9 @@ static void _tab_complete(char *cmd, int *pos)
     char hits[16][12];
     int n = 0;
     for (int i = 0; i < 3 && n < 16; i++)
-        if (strncmp(builtin[i], name, plen) == 0) snprintf(hits[n++], 12, "%s", builtin[i]);
+        if (strncmp(builtin[i], name, plen) == 0) snprintf(hits[n++], 12, "%.11s", builtin[i]);
     for (int i = 0; i < cmd_cnt && n < 16; i++)
-        if (strncmp(cmds[i].name, name, plen) == 0) snprintf(hits[n++], 12, "%s", cmds[i].name);
+        if (strncmp(cmds[i].name, name, plen) == 0) snprintf(hits[n++], 12, "%.11s", cmds[i].name);
 
     if (n == 0) { shell_print("\a"); return; }  /* 无匹配 → 蜂鸣 */
 
@@ -202,7 +202,7 @@ static void _tab_complete(char *cmd, int *pos)
     shell_print("\r\n");
     char b[24];
     for (int i = 0; i < n; i++) {
-        snprintf(b, sizeof(b), "  %s", hits[i]);
+        snprintf(b, sizeof(b), "  %.11s", hits[i]);
         _say_line(b);
     }
     shell_printf("%s", prompt_str);
@@ -259,7 +259,7 @@ void shell_poll(void)
                     break;
                 }
             }
-            if (!found) { char b[64]; snprintf(b, sizeof(b), "? %s", cmd_name); _say_line(b); }
+            if (!found) { char b[72]; snprintf(b, sizeof(b), "? %s", cmd_name); _say_line(b); }
         }
 
         /* 保存历史 (非空行) */
