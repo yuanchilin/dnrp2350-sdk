@@ -38,6 +38,9 @@ int main(void)
     if (pio_lcd_init()) console_set_pio_mode(pio_lcd_char, pio_lcd_flush);
 
     console_init(30, 8, 8, 16, 16);
+    console_clear();                            /* 全屏铺黑底 (否则白底残留) */
+    /* 清掉 console 文本区之外的 LCD 残留 (LCD 高 135px, 文本区只占 240x128) */
+    lcd_fill(0, 8 * 16, LCD_W - 1, LCD_H - 1, BLACK);
 
     FATFS fs;
     bool sd_ok = (f_mount(&fs, "0:", 1) == FR_OK);

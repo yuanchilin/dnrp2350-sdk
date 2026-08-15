@@ -97,14 +97,14 @@ void lcd_set_window(uint16_t xstar, uint16_t ystar,uint16_t xend,uint16_t yend)
         databuf[2] = (xend + 40) >> 8;
         databuf[3] = 0xFF & (xend + 40);
         lcd_write_cmd(lcd_self.setxcmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);         /* 注意: 只能发 4 字节, 32 会越界读栈垃圾 */
 
         databuf[0] = (ystar + 52) >> 8;
         databuf[1] = 0xFF & (ystar + 52);
         databuf[2] = (yend + 52) >> 8;
         databuf[3] = 0xFF & (yend + 52);
         lcd_write_cmd(lcd_self.setycmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
     }
     else
     {
@@ -113,14 +113,14 @@ void lcd_set_window(uint16_t xstar, uint16_t ystar,uint16_t xend,uint16_t yend)
         databuf[2] = (xend + 52) >> 8;
         databuf[3] = 0xFF & (xend + 52);
         lcd_write_cmd(lcd_self.setxcmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
 
         databuf[0] = (ystar + 40) >> 8;
         databuf[1] = 0xFF & (ystar + 40);
         databuf[2] = (yend + 40) >> 8;
         databuf[3] = 0xFF & (yend + 40);
         lcd_write_cmd(lcd_self.setycmd);
-        lcd_write_data(databuf, 32);
+        lcd_write_data(databuf, 4);
     }
 
     lcd_write_cmd(lcd_self.wramcmd);    /* 开始写入GRAM */
@@ -798,7 +798,7 @@ void lcd_init(void)
    }
 
    lcd_display_dir(1);                                             /* 设置屏幕方向 */
-   lcd_clear(WHITE);                                               /* 清屏 */
+   lcd_clear(BLACK);                                               /* 清屏 (黑底, 避免开机白闪) */
    lcd_on();
 }
  

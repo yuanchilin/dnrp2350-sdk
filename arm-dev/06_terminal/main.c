@@ -25,6 +25,8 @@ int main(void)
     while (uart_read_byte() >= 0);   /* 清 UART 噪声 */
 
     console_init(30, 8, 8, 16, 16);
+    console_clear();                            /* 全屏铺黑底 (否则白底残留) */
+    lcd_fill(0, 8 * 16, 239, 134, BLACK);       /* 盖掉文本区外的底部残留 (240x135 屏) */
 
     FATFS fs;
     bool sd_ok = (f_mount(&fs, "0:", 1) == FR_OK);
