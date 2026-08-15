@@ -3,7 +3,7 @@
 #  bmp2array.py — BMP 文件 → C 数组头文件 (供 03_photo 的 photo_data.h 使用)
 #
 #  用法:  python tools/bmp2array.py <input.bmp> <output.h>
-#  示例:  python tools/bmp2array.py photo.bmp arm-dev/03_photo/photo_data.h
+#  示例:  python tools/bmp2array.py photo.bmp apps/03_photo/photo_data.h
 #
 #  输出格式与 photo_data.h 一致: PHOTO_BMP_SIZE 宏 + photo_bmp[] 数组
 # ============================================================================

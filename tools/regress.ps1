@@ -6,9 +6,10 @@
 #    .\tools\regress.ps1 -Proj 08_badusb_terminal -Cmd "badusb list" -Expect "No" -NoFlash
 #
 #  参数:
-#    -Proj     项目名 (arm-dev/<Proj>)
+#    -Proj     项目名 (apps/<Proj>)
 #    -Cmd      发给 shell 的命令 (默认 "duel")
 #    -Expect   输出中必须出现的正则 (默认 "PASS|OK")
+#    -Platform 构建平台 arm|riscv (默认 arm, 透传给 build.ps1)
 #    -NoFlash  跳过编译+烧录, 直接对当前固件发命令验证
 #    -NoReboot AutoReboot 失败时手动按键的兜底 (与 -NoFlash 互斥)
 #    -WaitMs   捕获窗口 (默认 8000)
@@ -19,6 +20,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Proj,
     [string]$Cmd = "duel",
     [string]$Expect = "PASS|OK",
+    [ValidateSet("arm", "riscv")][string]$Platform = "arm",
     [switch]$NoFlash,
     [switch]$NoReboot,
     [int]$WaitMs = 8000,
@@ -32,10 +34,10 @@ function Write-Step($m) { Write-Host "`n== $m ==" -ForegroundColor Cyan }
 
 # ---- 1/4 编译 (复用通用 build.ps1) ----
 if (-not $NoFlash) {
-    Write-Step "1/4 编译 $Proj"
-    & (Join-Path $Root "build.ps1") $Proj
+    Write-Step "1/4 编译 $Proj [$Platform]"
+    & (Join-Path $Root "build.ps1") $Proj -Platform $Platform
     if ($LASTEXITCODE -ne 0) { Write-Host "编译失败" -ForegroundColor Red; exit 1 }
-    $uf2 = Join-Path $Root "arm-dev\$Proj\build\$Proj.uf2"
+    $uf2 = Join-Path $Root "apps\$Proj\build-$Platform\$Proj.uf2"
     if (-not (Test-Path $uf2)) { Write-Host "编译失败: 无 UF2" -ForegroundColor Red; exit 1 }
 }
 
@@ -44,7 +46,7 @@ Write-Step "2/4 烧录"
 if ($NoFlash) {
     Write-Host "   (跳过烧录, 直接验证当前固件)"
 } else {
-    & (Join-Path $Root "flash.ps1") (Join-Path $Root "arm-dev\$Proj\build\$Proj.uf2")
+    & (Join-Path $Root "flash.ps1") (Join-Path $Root "apps\$Proj\build-$Platform\$Proj.uf2")
     if ($LASTEXITCODE -ne 0) { Write-Host "烧录失败" -ForegroundColor Red; exit 1 }
 }
 

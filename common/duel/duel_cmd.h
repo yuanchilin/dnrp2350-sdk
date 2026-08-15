@@ -13,6 +13,13 @@
 
 #include <stdint.h>
 
+/* 整机 RISC-V 平台: 对战无意义 (需 core0=ARM), 提供空实现, 宿主代码无需 #ifdef */
+#ifdef __riscv
+static inline void duel_register_cmds(void) {}
+static inline void duel_set_restore_cb(void (*cb)(void)) { (void)cb; }
+static inline void duel_set_frame_display_cb(void (*cb)(void)) { (void)cb; }
+static inline void duel_set_hold_ms(uint32_t ms) { (void)ms; }
+#else
 /**
  * @brief 注册 duel/next/zoom/out 四个 shell 命令 (在 shell_init 之后调用)
  */
@@ -42,5 +49,7 @@ void duel_set_frame_display_cb(void (*cb)(void));
  *        再自动恢复终端界面。
  */
 void duel_set_hold_ms(uint32_t ms);
+
+#endif /* __riscv */
 
 #endif /* DUEL_CMD_H */

@@ -5,6 +5,9 @@
  *          依赖: pico_multicore (core1 启动), hardware_watchdog (等待期喂狗),
  *                duel_shared.h (共享内存/算法)。
  *          不依赖 shell / LCD — 交互层见 duel_cmd.h。
+ *
+ *          整机 RISC-V 平台 (PICO_RISCV=1) 时对战无意义 (需 core0=ARM),
+ *          所有 API 降级为空实现, 宿主代码无需 #ifdef。
  */
 
 #ifndef DUEL_CORE_H
@@ -21,6 +24,14 @@ typedef struct {
     uint32_t rv_trap_cause;      /* 若未完成: mcause (调试) */
     bool     arm_won;            /* 胜负判定 (都完成时) */
 } duel_result_t;
+
+#ifdef __riscv
+static inline void duel_init(void) {}
+static inline duel_result_t duel_run_round(void) { duel_result_t r = {0, 0, false, 0, false}; return r; }
+static inline void duel_pan_right(void) {}
+static inline void duel_zoom_in(void) {}
+static inline void duel_zoom_out(void) {}
+#else
 
 /**
  * @brief 初始化对战环境 (调用一次, 在 shell 注册命令之前)
@@ -42,5 +53,7 @@ duel_result_t duel_run_round(void);
 void duel_pan_right(void);       /* 视口右移 */
 void duel_zoom_in(void);         /* 放大 2x */
 void duel_zoom_out(void);        /* 缩小 2x */
+
+#endif /* __riscv */
 
 #endif /* DUEL_CORE_H */

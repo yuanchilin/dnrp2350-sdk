@@ -22,7 +22,7 @@ badusb /x.txt       注入指定脚本
 
 ```powershell
 .\build.ps1 08_badusb_terminal
-.\flash.ps1 .\arm-dev\08_badusb_terminal\build\08_badusb_terminal.uf2
+.\flash.ps1 .\apps\08_badusb_terminal\build-arm\08_badusb_terminal.uf2
 ```
 
 ## 接线

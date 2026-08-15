@@ -17,7 +17,9 @@ specific language governing permissions and limitations under the License.
 #include <stddef.h>    
 #include <stdint.h>
 
+#ifndef __riscv
 #include "hardware/structs/scb.h"
+#endif
 
 // works with negative index
 static inline int wrap_ix(int index, int n)
@@ -40,6 +42,8 @@ __attribute__((always_inline)) static inline uint32_t calculate_checksum(uint32_
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 #endif
 
+/* 以下为 ARM (Cortex-M) 专属实现; RISC-V 平台编译时跳过 (SDK 提供等价 API) */
+#ifndef __riscv
 __attribute__((always_inline)) static inline void __DSB(void) {
     __asm volatile("dsb 0xF" ::: "memory");
 }
@@ -63,6 +67,7 @@ __attribute__((__noreturn__)) static inline void system_reset() {
 __attribute__((always_inline)) static inline void __disable_irq(void) {
     __asm volatile("cpsid i" : : : "memory");
 }
+#endif /* !__riscv */
 
 #endif
 /* [] END OF FILE */

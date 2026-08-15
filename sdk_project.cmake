@@ -117,10 +117,16 @@ function(drp_project PROJ_NAME)
             continue()
         elseif(_m STREQUAL "duel")
             # 异构对战模块: ARM 侧驱动 + shell 命令层 (依赖 SHELL/LCD/UART/MULTICORE)
-            list(APPEND _src
-                ${DNRP_COMMON_DIR}/duel/duel_core.c
-                ${DNRP_COMMON_DIR}/duel/duel_cmd.c)
-            set(_need_duel 1)
+            # 注意: 对战要求 core0=ARM + core1=RISC-V, 整机 RISC-V (PICO_RISCV=1)
+            #       时无意义, 自动跳过该模块并给出提示。
+            if(PICO_RISCV)
+                message(STATUS "drp_project: 整机 RISC-V 平台, 跳过 DUEL 模块 (对战需 core0=ARM)")
+            else()
+                list(APPEND _src
+                    ${DNRP_COMMON_DIR}/duel/duel_core.c
+                    ${DNRP_COMMON_DIR}/duel/duel_cmd.c)
+                set(_need_duel 1)
+            endif()
             continue()
         else()
             set(_m_dir ${DNRP_COMMON_DIR}/BSP/${m})

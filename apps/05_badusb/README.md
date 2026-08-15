@@ -60,7 +60,7 @@ ENTER
 
 ```powershell
 .\build.ps1 05_badusb
-.\flash.ps1 .\arm-dev\05_badusb\build\05_badusb.uf2
+.\flash.ps1 .\apps\05_badusb\build-arm\05_badusb.uf2
 ```
 
 首次上电会自动在 SD 卡写入示例脚本 `/hello.txt`。

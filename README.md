@@ -2,13 +2,14 @@
 
 基于 **RP2350**（树莓派 Pico 2 内核）的嵌入式学习与演示工程，目标板为 DNRP2350A。
 
-仓库包含 7 个从易到难的 ARM (Cortex-M33) 实验、一份可复用的公共库（BSP / Shell / 终端 / TUI / FatFs）、一套一键构建、烧录与真机回归测试脚本，以及 RISC-V 平台的工程骨架。
+仓库包含 7 个从易到难的应用实验、一份可复用的公共库（BSP / Shell / 终端 / TUI / FatFs）、一套一键构建、烧录与真机回归测试脚本。**同一份工程代码原生支持 ARM (Cortex-M33) 与 RISC-V (Hazard3) 双平台构建**——`build.ps1 -Platform` 一键切换，无需复制工程。
 
 ## 目录结构
 
 ```text
 RP/
-├── arm-dev/            # ARM (Cortex-M33) 实验工程: 01_led ... 07_pio_lcd
+├── apps/               # 应用工程区 (平台无关): 01_led ... 08_badusb_terminal
+│                       #   每个工程可用 -Platform arm|riscv 编译两种固件
 ├── common/             # 公共库
 │   ├── BSP/            #   板级驱动: LCD / LED / KEY / SPI / UART / SDIO
 │   ├── console/        #   LCD 终端输出 + ANSI 彩色
@@ -16,12 +17,12 @@ RP/
 │   ├── commands/       #   标准命令: ls cat view free sysinfo clear uptime echo setcolor snake good
 │   ├── tui/            #   30x8 全屏 TUI (tui_demo)
 │   ├── pio_lcd/        #   PIO+DMA 加速的 LCD 驱动
+│   ├── duel/           #   ARM vs RISC-V 异构对战模块 (纯算法层 + 驱动 + 命令层)
 │   └── Middlewares/    #   FatFs (ff15) + SD 卡驱动
-├── riscv-dev/          # RISC-V (Hazard3) 工程骨架, 当前仅 01_led
 ├── tools/picotool/     # 预编译 picotool (避免每个工程联网下载/重新编译)
 ├── pico-sdk/           # Raspberry Pi Pico SDK (git submodule)
 ├── sdk_project.cmake   # 公共 CMake 工程模板 drp_project()
-├── build.ps1           # 一键构建
+├── build.ps1           # 一键构建 (双平台)
 ├── flash.ps1           # 一键烧录
 └── tui_smoke.ps1       # TUI 真机冒烟回归测试
 ```
@@ -32,8 +33,8 @@ RP/
 - [git](https://git-scm.com/)（含 submodule）
 - [CMake](https://cmake.org/) ≥ 3.13
 - [Ninja](https://ninja-build.org/)
-- ARM 工具链 `arm-none-eabi-gcc`（构建 ARM 工程必需）
-- RISC-V 工具链（`riscv-none-elf-gcc`，xPack 15.2 已验证）——构建 `riscv-dev/` 与 `04_duel`（ARM vs RISC-V 异构对战）需要
+- ARM 工具链 `arm-none-eabi-gcc`（ARM 平台必需）
+- RISC-V 工具链 `riscv-none-elf-gcc`（xPack 15.2 已验证；RISC-V 平台与 `04_duel` 异构对战必需；`build.ps1` 会自动从用户 PATH 或默认安装点补入）
 - （可选）MCP serial 服务 `http://localhost:9721`：`flash.ps1` / `tui_smoke.ps1` 通过它向板子发命令
 
 ## 快速开始
@@ -51,18 +52,28 @@ git clone --recursive <repo-url>
 .\build.ps1
 ```
 
-构建指定工程（产物为 `arm-dev/<工程>/build/<工程>.uf2`）：
+构建指定工程（产物为 `apps/<工程>/build-arm/<工程>.uf2`）：
 
 ```powershell
 .\build.ps1 07_pio_lcd
 .\build.ps1 07_pio_lcd -Clean   # 清理旧缓存后重新配置构建
 ```
 
+同一份工程原生编译 RISC-V 固件（产物 `apps/<工程>/build-riscv/<工程>.uf2`）：
+
+```powershell
+.\build.ps1 06_terminal -Platform riscv
+.\build.ps1 08_badusb_terminal -Platform riscv
+```
+
+> 注：`04_duel`（异构对战）要求 core0=ARM，只建议 `-Platform arm` 构建；整机 RISC-V 构建时该工程的 DUEL 模块自动停用。
+
+
 烧录（自动经 MCP 发 `reboot` 进 bootloader，再拷贝 UF2）：
 
 ```powershell
 .\flash.ps1                          # 默认取最近构建的 UF2
-.\flash.ps1 .\arm-dev\07_pio_lcd\build\07_pio_lcd.uf2
+.\flash.ps1 .\apps\07_pio_lcd\build-arm\07_pio_lcd.uf2
 ```
 
 运行 TUI 回归测试（可选参数 `-Port` / `-Uf2`）：
@@ -98,7 +109,7 @@ git clone --recursive <repo-url>
 | `02_lcd_uart` | LCD + UART + Shell | LCD、UART、SPI、Shell |
 | `03_photo` | 迷你相框：LCD + TF 卡 BMP 解码 | LCD、SDIO、FatFs、BMP（`next`/`prev`/`info`/`auto` 命令） |
 | `04_duel` | 异构对战：ARM (M33) vs RISC-V (Hazard3) 双核渲染 Mandelbrot | LCD、Shell、`pico_multicore`、archsel 异构切换、Q16.16 定点（`core1_riscv/`）。渲染算法为 ARM/RISC-V **共享同一份** `duel_shared.h::duel_render_frame()`（static inline 纯函数，两侧 include 同一源码，算法永不漂移） |
-| `05_badusb` | USB HID 键盘（TinyUSB） | LCD、KEY、SDIO、FatFs、`tinyusb_device`（脚本语法见 [05 项目 README](arm-dev/05_badusb/README.md)） |
+| `05_badusb` | USB HID 键盘（TinyUSB） | LCD、KEY、SDIO、FatFs、`tinyusb_device`（脚本语法见 [05 项目 README](apps/05_badusb/README.md)） |
 | `06_terminal` | 迷你终端（全公共库） | Shell、Console、Commands、SDIO、FatFs |
 | `07_pio_lcd` | PIO+DMA LCD 加速终端 + 全屏 TUI | 在 06 基础上加入 `pio_lcd`、`tui`（`tui` 命令） |
 

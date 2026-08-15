@@ -13,6 +13,7 @@ specific language governing permissions and limitations under the License.
 */
 #include <stdio.h>
 #include <stdarg.h>
+#include "pico/stdlib.h"   /* __breakpoint() 双架构可用 */
 #include "my_debug.h"
 
 void my_printf(const char *pcFormat, ...) {
@@ -31,9 +32,7 @@ void my_assert_func(const char *file, int line, const char *func,
     printf("assertion \"%s\" failed: file \"%s\", line %d, function: %s\n",
            pred, file, line, func);
     fflush(stdout);
-    __asm volatile("cpsid i" : : : "memory"); /* Disable global interrupts. */
-    while (1) {
-        __asm("bkpt #0");
-    };  // Stop in GUI as if at a breakpoint (if debugging, otherwise loop
-        // forever)
+    __breakpoint();      /* 断点 (ARM bkpt / RISC-V ebreak), 调试器可停住 */
+    for (;;) {           /* 无调试器时死循环, 不复位 */
+    }
 }

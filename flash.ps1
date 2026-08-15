@@ -1,7 +1,7 @@
 # ============================================================================
 #  DNRP2350A 一键烧录 — 经 MCP serial 发 reboot 进 bootloader + 盘符拷贝 UF2
 #  用法:  .\flash.ps1 [uf2文件路径]
-#  示例:  .\flash.ps1 .\arm-dev\06_terminal\build\06_terminal.uf2
+#  示例:  .\flash.ps1 .\apps\06_terminal\build-arm\06_terminal.uf2
 #  依赖:  MCP serial 服务 (http://localhost:9721) 用于发送 reboot
 # ============================================================================
 param(
@@ -10,9 +10,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# ---- 默认 UF2: 未指定时取最近修改的 arm-dev/*/build/*.uf2 ----
+# ---- 默认 UF2: 未指定时取最近修改的 apps/*/build-*/ *.uf2 ----
 if (-not $Uf2) {
-    $Uf2 = Get-ChildItem "$PSScriptRoot\arm-dev\*\build\*.uf2" |
+    $Uf2 = Get-ChildItem "$PSScriptRoot\apps\*\build-*\*.uf2" |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1 -ExpandProperty FullName
 }
