@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
+#include "board/board.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
@@ -29,11 +31,8 @@ static void cmd_hello(const char *arg)
 /* ========================================================================== */
 int main(void)
 {
-    stdio_init_all();
-    uart_init_dev();
-    led_init();
-    spi1_init();
-    lcd_init();
+    board_init();
+    watchdog_enable(5000, 1);
 
     /* ---- LCD 启动画面 ---- */
     lcd_show_string(10, 10,  220, 48, 32, "Hello Justin !", BLUE);
@@ -53,6 +52,7 @@ int main(void)
 
     /* ---- shell 主循环 ---- */
     while (1) {
+        watchdog_update();
         shell_poll();
         sleep_ms(1);
     }

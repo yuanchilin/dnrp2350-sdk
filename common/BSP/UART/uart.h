@@ -32,6 +32,7 @@ void uart_send_string(const char *str);
 void uart_send_buf(const uint8_t *buf, uint16_t len);
 int  uart_rx_available(void);                   /* 返回可读字节数 */
 int  uart_read_byte(void);                      /* 读一个字节，无数据返回 -1 */
+void uart_flush(void);                          /* 清空接收缓冲残留 (开机噪声/脏数据) */
 void uart_printf(const char *fmt, ...);         /* 简易格式化输出 */
 
 #endif /* __BSP_UART_H */

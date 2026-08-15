@@ -10,6 +10,7 @@
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "hardware/watchdog.h"
+#include "board/board.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
@@ -17,8 +18,7 @@
 #include "BSP/SDIO/spi_sdcard.h"
 #include "BSP/KEY/key.h"
 #include "badusb/hid_keyboard.h"
-#include "tusb.h"
-#include "badusb/payload.h"
+#include "badusb/badusb_core.h"
 #include "badusb/sample_script.h"
 #include "ff.h"
 
@@ -39,91 +39,15 @@ static int  selected = 0;
 static int  scroll_top = 0;         /* 菜单滚动偏移 (支持 >8 个文件) */
 
 /* ========================================================================== */
-/*  扫描 SD 卡 .txt 文件                                                       */
-/* ========================================================================== */
-static void scan_scripts(void)
-{
-    DIR dir; FILINFO fno;
-    file_cnt = 0;
-    if (f_opendir(&dir, "/") != FR_OK) return;
-
-    while (f_readdir(&dir, &fno) == FR_OK && fno.fname[0] && file_cnt < MAX_FILES) {
-        if (fno.fattrib & AM_DIR) continue;
-        char *e = strrchr(fno.fname, '.');
-        if (e && strcasecmp(e, ".txt") == 0) {
-            snprintf(files[file_cnt], MAX_NAME, "/%.46s", fno.fname);
-            file_cnt++;
-        }
-    }
-    f_closedir(&dir);
-}
-
-/* ========================================================================== */
-/*  读取并执行脚本文件                                                          */
+/*  读取并执行脚本文件 (核心在 badusb_core, 这里只负责 LCD 状态条)              */
 /* ========================================================================== */
 static void run_script(const char *path)
 {
-    FIL fil;
-    if (f_open(&fil, path, FA_READ) != FR_OK) {
-        uart_printf("Cannot open: %s\r\n", path);
-        return;
-    }
-
-    uint32_t size = f_size(&fil);
-    if (size > 16384) {          /* 最大 16KB */
-        uart_printf("Script too large (%lu bytes)\r\n", (unsigned long)size);
-        f_close(&fil);
-        return;
-    }
-
-    static uint8_t buf[16384];
-    UINT br;
-    f_read(&fil, buf, size, &br);
-    f_close(&fil);
-
-    uart_printf("Executing: %s (%u bytes)\r\n", path, br);
-
-    LED(0);                         /* 注入进行中: LED 亮 */
-
-    /* LCD 提示 */
     lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, RED);
     lcd_show_string(2, LCD_H - 18, 200, 16, 12, "INJECTING...", WHITE);
-
-    /* 等待 USB 枚举 (最多等 5 秒) */
-    uart_printf("Waiting for USB HID ready...\r\n");
-    int wait_cnt = 0;
-    uint32_t last_state = 0;
-    while (!hid_ready() && wait_cnt < 5000) {
-        hid_task();
-        watchdog_update();          /* 等待枚举最长 5s, 需喂狗 */
-        uint32_t st = (tud_connected() ? 1u : 0u) | (tud_mounted() ? 2u : 0u) | (tud_ready() ? 4u : 0u);
-        if (st != last_state) {
-            uart_printf("USB state: conn=%d mount=%d ready=%d\r\n",
-                        tud_connected(), tud_mounted(), tud_ready());
-            last_state = st;
-        }
-        sleep_ms(1);
-        wait_cnt++;
-    }
-    if (!hid_ready()) {
-        uart_printf("ERROR: USB HID NOT READY after 5s!\r\n");
-        uart_printf("Check: USB_OTG connected? Port correct?\r\n");
-        lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, RED);
-        lcd_show_string(2, LCD_H - 18, 200, 16, 12, "USB NOT READY!", WHITE);
-        LCD_PWR(0);   /* GPIO25 与 LED 复用, 高电平会关背光 — 保持错误提示可见 */
-        return;
-    }
-    uart_printf("USB HID ready, injecting...\r\n");
-    sleep_ms(500);   /* 等目标电脑识别键盘 */
-
-    /* 执行 */
-    payload_execute(buf, br);
-
-    /* 完成 */
-    lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, GREEN);
-    lcd_show_string(2, LCD_H - 18, 200, 16, 12, "DONE!", WHITE);
-    LED(0);
-    uart_printf("Done.\r\n> ");
+    bool ok = badusb_inject_file(path);
+    lcd_fill(0, LCD_H - 20, LCD_W - 1, LCD_H - 1, ok ? GREEN : RED);
+    lcd_show_string(2, LCD_H - 18, 200, 16, 12, ok ? "DONE!" : "FAIL!", WHITE);
 }
 
 /* ========================================================================== */
@@ -171,14 +95,9 @@ static void draw_menu(void)
 /* ========================================================================== */
 int main(void)
 {
-    stdio_init_all();
-    uart_init_dev();
-    sleep_ms(100);
-    while (uart_read_byte() >= 0);    /* 清噪声 */
-    led_init();
+    board_init();
+    watchdog_enable(5000, 1);
     key_init();
-    spi1_init();
-    lcd_init();
     hid_init();
     /* 确保背光 — 防止 board_init 干扰 */
     gpio_set_dir(25, GPIO_OUT);
@@ -197,24 +116,11 @@ int main(void)
         uart_printf("SD OK. ");
         /* 自动写入示例脚本: 不存在或与内置示例不一致时刷新
          * (烧录新固件后 hello.txt 会自动更新, 用户自定义脚本请用别的文件名) */
-        FIL test;
-        bool need_demo = false;
-        if (f_open(&test, "/hello.txt", FA_READ) != FR_OK) {
-            need_demo = true;
-        } else {
-            need_demo = (f_size(&test) != SAMPLE_PAYLOAD_SIZE);
-            f_close(&test);
-        }
-        if (need_demo) {
-            uart_printf("Writing demo script... ");
-            if (f_open(&test, "/hello.txt", FA_WRITE | FA_CREATE_ALWAYS) == FR_OK) {
-                UINT bw;
-                f_write(&test, sample_payload, SAMPLE_PAYLOAD_SIZE, &bw);
-                f_close(&test);
-                uart_printf("OK! ");
-            }
-        }
-        scan_scripts();
+        if (badusb_ensure_file("/hello.txt", sample_payload, SAMPLE_PAYLOAD_SIZE))
+            uart_printf("hello.txt OK. ");
+        else
+            uart_printf("hello.txt WRITE FAILED! ");
+        file_cnt = badusb_scan_ext(".txt", files, MAX_FILES);
         uart_printf("%d scripts found.\r\n", file_cnt);
     }
 
@@ -257,7 +163,7 @@ int main(void)
                     run_script(files[selected]);
                     draw_menu();
                 } else if (strcmp(cmd, "s") == 0) {
-                    scan_scripts();
+                    file_cnt = badusb_scan_ext(".txt", files, MAX_FILES);
                     selected = selected < file_cnt ? selected : (file_cnt ? file_cnt - 1 : 0);
                     uart_printf("%d scripts found.\r\n", file_cnt);
                     draw_menu();

@@ -71,6 +71,12 @@ git clone --recursive <repo-url>
 .\tui_smoke.ps1
 ```
 
+运行 08 全量冒烟测试（shell / SD / TUI / console / OTG 注入按键流，需 USB_OTG 接本机）：
+
+```powershell
+.\tools\08_smoke.ps1
+```
+
 ## 实验工程一览
 
 | 工程 | 主题 | 涉及模块 |

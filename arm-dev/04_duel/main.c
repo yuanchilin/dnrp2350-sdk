@@ -11,8 +11,10 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 #include "pico/multicore.h"
 #include "hardware/sync.h"
+#include "board/board.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
@@ -68,6 +70,7 @@ static void core0_render(void)
     double x0 = g_cx - g_scale * 0.5;
 
     for (int y = 0; y < LCD_H; y++) {
+        watchdog_update();              /* 单帧渲染可能超 5s, 逐行喂狗 */
         for (int x = C0_X_START; x <= C0_X_END; x++) {
             double cx = x0 + (double)x * dx;
             double cy = g_cy + ((double)y - (double)LCD_H*0.5) * g_scale / (double)LCD_H;
@@ -121,12 +124,13 @@ static void run_duel(void)
     core0_render();
 
     /* 等待 Core1 完成 (内存屏障: 确保 fb 写入对 Core0 可见) */
-    while (!g_c1_done) tight_loop_contents();
+    while (!g_c1_done) { watchdog_update(); tight_loop_contents(); }
     __dmb();
     absolute_time_t t1 = get_absolute_time();
 
     /* LCD: 补写 Core1 刚开始时的行 (Core0 可能先写了部分) */
     for (int y = 0; y < LCD_H; y++) {
+        watchdog_update();              /* 逐行喂狗 */
         lcd_write_row(y);
     }
 
@@ -147,12 +151,8 @@ static void run_duel(void)
 /* ========================================================================== */
 int main(void)
 {
-    stdio_init_all();
-    uart_init_dev();
-    while (uart_read_byte() >= 0);    /* 清噪声 */
-    led_init();
-    spi1_init();
-    lcd_init();
+    board_init();
+    watchdog_enable(5000, 1);
     lcd_clear(BLACK);
 
     uart_printf("\r\n========================================\r\n");
@@ -164,6 +164,7 @@ int main(void)
     /* 主循环 */
     char cmd[16]; int pos = 0;
     while (1) {
+        watchdog_update();
         int ch = uart_read_byte();
         if (ch < 0) { sleep_ms(10); continue; }
         if (ch == '\r' || ch == '\n') {

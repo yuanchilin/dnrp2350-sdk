@@ -5,9 +5,9 @@
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
-#include "BSP/LED/led.h"
-#include "BSP/SPI/spi.h"
+#include "board/board.h"
 #include "BSP/LCD/lcd.h"
+#include "BSP/SPI/spi.h"
 #include "BSP/UART/uart.h"
 #include "pio_lcd/pio_lcd.h"
 #include "console/console.h"
@@ -21,17 +21,10 @@ static void out_colored(const char *s) { console_set_color(GRAY, BLACK); console
 
 int main(void)
 {
-    /* 板级初始化: UART 最先就绪, 保证串口自检/日志可见 */
-    led_init(); LED(0);
-    spi1_init();
-    lcd_init();
-
-    uart_init_dev();
-    sleep_ms(50);
-    while (uart_read_byte() >= 0);   /* 清 UART 噪声 */
+    board_init();
     uart_send_string("[V2]\r\n");    /* 自检标记: 串口链路可用 */
 
-    /* 看门狗: 串口自检后开启, 与已验证的 HEAD 顺序一致 */
+    /* 看门狗: 串口自检后开启 */
     watchdog_enable(5000, 1);
 
     /* PIO+DMA LCD 硬件加速 (渲染回调供 console 使用) */

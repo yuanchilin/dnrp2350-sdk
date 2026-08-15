@@ -4,6 +4,8 @@
  */
 
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
+#include "board/board.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
 #include "BSP/LCD/lcd.h"
@@ -15,14 +17,8 @@
 
 int main(void)
 {
-    /* 板级初始化: UART 先就绪, 保证串口日志可见 */
-    led_init(); LED(0);
-    spi1_init();
-    lcd_init();
-
-    uart_init_dev();
-    sleep_ms(50);
-    while (uart_read_byte() >= 0);   /* 清 UART 噪声 */
+    board_init();
+    watchdog_enable(5000, 1);
 
     console_init(30, 8, 8, 16, 16);
     console_clear();                            /* 全屏铺黑底 (否则白底残留) */
@@ -41,6 +37,6 @@ int main(void)
     console_println("06 Terminal");
     console_println("Type help");
 
-    while (1) { shell_poll(); sleep_ms(1); }
+    while (1) { watchdog_update(); shell_poll(); sleep_ms(1); }
     return 0;
 }

@@ -14,7 +14,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/watchdog.h"
-#include "BSP/LED/led.h"
+#include "board/board.h"
 #include "BSP/SPI/spi.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/UART/uart.h"
@@ -31,14 +31,7 @@ static void out_colored(const char *s) { console_set_color(GRAY, BLACK); console
 
 int main(void)
 {
-    /* 板级初始化: UART 最先就绪 */
-    led_init(); LED(0);
-    spi1_init();
-    lcd_init();
-
-    uart_init_dev();
-    sleep_ms(50);
-    while (uart_read_byte() >= 0);   /* 清 UART 噪声 */
+    board_init();
     uart_send_string("[V2]\r\n");
 
     /* 看门狗: 串口自检后开启 */

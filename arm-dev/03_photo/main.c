@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
+#include "board/board.h"
 #include "BSP/LCD/lcd.h"
 #include "BSP/LED/led.h"
 #include "BSP/SPI/spi.h"
@@ -45,9 +47,8 @@ static void ensure_photo_on_sd(void)
     uart_printf("Creating photo.bmp (%d bytes)...\r\n", PHOTO_BMP_SIZE);
 
     fr = f_open(&fil, "/photo.bmp", FA_WRITE | FA_CREATE_NEW);
-    uart_printf("  f_open = %d\r\n", fr);
     if (fr != FR_OK) {
-        uart_printf("ERROR: Cannot create file (%d)\r\n", fr);
+        uart_printf("ERROR: Cannot create file\r\n");
         return;
     }
 
@@ -210,11 +211,8 @@ static void autoplay_tick(void)
 /* ========================================================================== */
 int main(void)
 {
-    stdio_init_all();
-    uart_init_dev();
-    led_init();
-    spi1_init();
-    lcd_init();
+    board_init();
+    watchdog_enable(5000, 1);
 
     uart_printf("\r\n========================================\r\n");
     uart_printf(" DNRP2350A Mini Photo Frame\r\n");
@@ -243,7 +241,7 @@ int main(void)
     }
 
     /* 清空 RX 缓冲 (排除启动噪声) */
-    while (uart_read_byte() >= 0);
+    uart_flush();
 
     /* 注册 shell 命令 */
     shell_init("> ");
@@ -257,6 +255,7 @@ int main(void)
 
     /* ---- 主循环: shell + autoplay 定时 ---- */
     while (1) {
+        watchdog_update();
         shell_poll();
         autoplay_tick();
         sleep_ms(10);

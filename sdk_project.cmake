@@ -55,9 +55,14 @@ function(drp_project PROJ_NAME)
             set(_m_dir ${DNRP_COMMON_DIR}/tui)
         elseif(_m STREQUAL "pio_lcd")
             set(_m_dir ${DNRP_COMMON_DIR}/pio_lcd)
+        elseif(_m STREQUAL "board")
+            set(_m_dir ${DNRP_COMMON_DIR}/board)
         elseif(_m STREQUAL "badusb")
-            # BadUSB 注入引擎 (hid_keyboard + payload), 需额外链接 tinyusb_device
-            list(APPEND _src ${DNRP_COMMON_DIR}/badusb/hid_keyboard.c ${DNRP_COMMON_DIR}/badusb/payload.c)
+            # BadUSB 注入引擎 (hid_keyboard + payload + 注入核心), 需额外链接 tinyusb_device
+            list(APPEND _src
+                ${DNRP_COMMON_DIR}/badusb/hid_keyboard.c
+                ${DNRP_COMMON_DIR}/badusb/payload.c
+                ${DNRP_COMMON_DIR}/badusb/badusb_core.c)
             set(_need_badusb 1)
             continue()
         elseif(_m STREQUAL "badusb_cmd")
