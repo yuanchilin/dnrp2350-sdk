@@ -16,10 +16,10 @@
 #include "BSP/UART/uart.h"
 #include "BSP/SDIO/spi_sdcard.h"
 #include "BSP/KEY/key.h"
-#include "hid_keyboard.h"
+#include "badusb/hid_keyboard.h"
 #include "tusb.h"
-#include "payload.h"
-#include "sample_script.h"
+#include "badusb/payload.h"
+#include "badusb/sample_script.h"
 #include "ff.h"
 
 /* ========================================================================== */

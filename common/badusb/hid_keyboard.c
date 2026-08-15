@@ -143,12 +143,23 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 /* ========================================================================== */
 /*  发送接口                                                                   */
 /* ========================================================================== */
+/* tud_hid_report 在端点忙时返回 false, 若不检查返回值会静默丢按键;
+ * 这里重试 (服务 USB 栈 + 短暂等待) 直到报告发出, 最多约 25ms。 */
+static void hid_report_send(const uint8_t *report)
+{
+    for (int i = 0; i < 500; i++) {
+        if (tud_hid_report(0, report, 8)) return;
+        hid_task();
+        sleep_us(50);
+    }
+}
+
 void hid_key_press_multi(uint8_t modifiers, const uint8_t *keycodes, uint8_t count) {
     if (!_hid_ready) return;
     uint8_t report[8] = { modifiers, 0, 0, 0, 0, 0, 0, 0 };
     if (count > 6) count = 6;                       /* 键盘报告最多 6 个非修饰键 */
     for (uint8_t i = 0; i < count; i++) report[2 + i] = keycodes[i];
-    tud_hid_report(0, report, sizeof(report));
+    hid_report_send(report);
 }
 
 void hid_key_press(uint8_t modifiers, uint8_t keycode) {
@@ -162,7 +173,7 @@ void hid_key_release(void) {
     /* 注意: 此 TinyUSB 版本 tud_hid_report 第一个参数是 report_id (instance 固定为 0)。
      * 传 1 会把 0x01 前插进报告并多发 1 字节, 主机按无 Report ID 的描述符解析时
      * 会把每次松键误判成 "左 Ctrl 被按住"。 */
-    tud_hid_report(0, report, sizeof(report));
+    hid_report_send(report);
 }
 
 void hid_key_tap(uint8_t modifiers, uint8_t keycode) {

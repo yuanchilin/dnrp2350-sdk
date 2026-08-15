@@ -1,0 +1,31 @@
+;
+; PIO SPI TX — 32 bits/word, side-set 控制 SCK
+; 用于 ST7789 LCD 加速
+; 注意: 每次 pull 一个 32 位字 = 4 个字节。
+; 数据需按 b0<<24 | b1<<16 | b2<<8 | b3 打包, 左移输出时字节序为 b0,b1,b2,b3 (MSB first)。
+;
+.program lcd_spi8
+.side_set 1
+
+    pull block       side 0  ; 等 TX FIFO 数据 (32 位 = 4 字节)
+    set x, 31        side 0  ; 32 bits
+bitloop:
+    out pins, 1      side 0  ; 输出 bit → MOSI, SCK=0
+    jmp x-- bitloop  side 1  ; SCK=1 (数据采样), x--
+                              ; SCK=0 (下一个 bit)
+% c-sdk {
+static inline void lcd_spi8_program_init(PIO pio, uint sm, uint offset,
+                                          uint mosi_pin, uint sck_pin) {
+    pio_sm_config c = lcd_spi8_program_get_default_config(offset);
+    sm_config_set_sideset_pins(&c, sck_pin);
+    sm_config_set_out_pins(&c, mosi_pin, 1);
+    /* 左移(MSB first), 无自动拉取(手动 pull), 32 位阈值 */
+    sm_config_set_out_shift(&c, false, false, 32);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX); // TX FIFO 加倍
+    pio_sm_init(pio, sm, offset, &c);
+    /* 关键: 显式把 MOSI/SCK 设为输出方向, 否则 pindirs=0(输入), PIO 无法驱动引脚 */
+    pio_sm_set_consecutive_pindirs(pio, sm, mosi_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, sck_pin, 1, true);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
