@@ -472,7 +472,7 @@ void lcd_draw_circle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
  * @param       color : 字符的颜色;
  * @retval      无
  */
-void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mode, uint16_t color)
+static void _lcd_show_char_bg(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint16_t color, uint16_t bg)
 {
     uint8_t temp = 0,t1 = 0, t = 0;
     uint8_t *pfont = 0;
@@ -526,14 +526,9 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
                     {
                         colortemp = color;
                     }
-                    else if (mode == 0)
-                    {
-                        colortemp = 0xFFFF;
-                    }
-                    /* mode=1: 背景也写, 但用黑色 */
                     else
                     {
-                        colortemp = 0x0000;
+                        colortemp = bg;
                     }
 
                     lcd_write_data16(colortemp);
@@ -564,14 +559,9 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
                 {
                     colortemp = color;
                 }
-                else if (mode == 0)
-                {
-                    colortemp = 0xFFFF;
-                }
-                /* mode=1: 背景也写, 用黑色 */
                 else
                 {
-                    colortemp = 0x0000;
+                    colortemp = bg;
                 }
 
                 lcd_write_data16(colortemp);
@@ -579,6 +569,29 @@ void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mo
             }
         }
     }
+}
+
+/**
+ * @brief       在指定位置显示一个字符
+ * @param       x,y  : 坐标
+ * @param       chr  : 要显示的字符:" "--->"~"
+ * @param       size : 字体大小 12/16/24/32
+ * @param       mode : 叠加方式(1); 非叠加方式(0);
+ * @param       color : 字符的颜色;
+ * @retval      无
+ */
+void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mode, uint16_t color)
+{
+    _lcd_show_char_bg(x, y, chr, size, color, mode ? BLACK : WHITE);
+}
+
+/**
+ * @brief       在指定位置显示一个字符 (可指定背景色)
+ * @param       color : 前景色; bg : 背景色
+ */
+void lcd_show_char_bg(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint16_t color, uint16_t bg)
+{
+    _lcd_show_char_bg(x, y, chr, size, color, bg);
 }
 
 /**
@@ -701,6 +714,37 @@ void lcd_show_string(uint16_t x, uint16_t y, uint16_t width, uint16_t height, ui
         if (y >= height)break;  /* 退出 */
 
         lcd_show_char(x, y, *p, size, 0, color);
+        x += size / 2;
+        p++;
+    }
+}
+
+/**
+ * @brief       显示字符串 (可指定背景色)
+ * @param       x,y         : 起始坐标
+ * @param       width,height: 区域大小
+ * @param       size        : 选择字体 12/16/24/32
+ * @param       p           : 字符串首地址
+ * @param       color       : 前景色
+ * @param       bg          : 背景色 (空白处填此色, 支持任意底色条)
+ */
+void lcd_show_string_bg(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint8_t size, char *p, uint16_t color, uint16_t bg)
+{
+    uint8_t x0 = x;
+    width += x;
+    height += y;
+
+    while ((*p <= '~') && (*p >= ' '))   /* 判断是不是非法字符! */
+    {
+        if (x >= width)
+        {
+            x = x0;
+            y += size;
+        }
+
+        if (y >= height)break;  /* 退出 */
+
+        lcd_show_char_bg(x, y, *p, size, color, bg);
         x += size / 2;
         p++;
     }

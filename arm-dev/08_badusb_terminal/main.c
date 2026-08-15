@@ -24,10 +24,25 @@
 #include "commands/commands.h"
 #include "tui/tui.h"
 #include "badusb/badusb.h"
+#include "duel/duel_core.h"
+#include "duel/duel_cmd.h"
 #include "ff.h"
 
 static void echo_colored(char c) { console_set_color(0x03E0, BLACK); console_putc(c); }
 static void out_colored(const char *s) { console_set_color(GRAY, BLACK); console_write_ansi(s); console_putc('\n'); }
+
+/* 战斗结束恢复终端界面: 重绘 console 全屏 + 清掉文本区之外的底部残留 (135-128=7px) */
+static void duel_restore_console(void)
+{
+    console_draw();
+    lcd_fill(0, 8 * 16, LCD_W - 1, LCD_H - 1, BLACK);
+}
+
+/* 战斗画面用 PIO+DMA 整帧刷屏 (比 SPI 逐行快一个量级) */
+static void duel_show_pio(void)
+{
+    pio_lcd_blit_frame((const uint16_t *)DSHARED->fb);
+}
 
 int main(void)
 {
@@ -59,6 +74,13 @@ int main(void)
     commands_register_all();
     badusb_init(sd_ok);        /* 自动写示例脚本 + 扫描 .txt + KEY */
     badusb_register();         /* badusb 命令 */
+
+    /* 异构对战 (ARM vs RISC-V): PIO 整帧刷屏 + 战报停留 5s + 恢复 console 终端 */
+    duel_init();
+    duel_set_frame_display_cb(duel_show_pio);
+    duel_set_hold_ms(5000);
+    duel_set_restore_cb(duel_restore_console);
+    duel_register_cmds();
 
     shell_print("\r\n== DNRP2350A BadUSB Terminal ==\r\n");
     shell_print("SD: "); shell_print(sd_ok ? "OK" : "ERR"); shell_print("\r\n");

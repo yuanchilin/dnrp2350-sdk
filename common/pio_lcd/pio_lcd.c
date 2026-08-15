@@ -41,6 +41,18 @@ void pio_lcd_char(int col, int row, char ch, uint16_t fg, uint16_t bg)
     }
 }
 
+/* 整帧 blit: RGB565 像素数组 → PIO fb (hi/lo 字节序) → 全屏 DMA 刷新 */
+void pio_lcd_blit_frame(const uint16_t *frame)
+{
+    if (!ok) return;
+    for (int i = 0; i < LCD_W * LCD_H; i++) {
+        uint16_t c = frame[i];
+        fb[i * 2]     = (uint8_t)(c >> 8);
+        fb[i * 2 + 1] = (uint8_t)(c & 0xFF);
+    }
+    pio_lcd_flush(0, 0, LCD_W, LCD_H);
+}
+
 void pio_lcd_flush(int x, int y, int w, int h)
 {
     if (!ok) return;

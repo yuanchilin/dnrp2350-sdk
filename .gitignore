@@ -47,3 +47,7 @@ photo.bmp
 
 # ---- 工具编译产物 (rawkey_listener.ps1 每次自动重建) ------------------------
 tools/RawKeyListener.dll
+
+# ---- 04_duel 宿主机侧预期图 (测试产物, 不入库) -----------------------------
+arm-dev/04_duel/expected_duel*.png
+arm-dev/04_duel/expected_duel*.bmp

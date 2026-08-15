@@ -33,7 +33,7 @@ RP/
 - [CMake](https://cmake.org/) ≥ 3.13
 - [Ninja](https://ninja-build.org/)
 - ARM 工具链 `arm-none-eabi-gcc`（构建 ARM 工程必需）
-- RISC-V 工具链 `riscv32-unknown-elf-gcc`（仅 `riscv-dev` 需要，当前环境未安装）
+- RISC-V 工具链（`riscv-none-elf-gcc`，xPack 15.2 已验证）——构建 `riscv-dev/` 与 `04_duel`（ARM vs RISC-V 异构对战）需要
 - （可选）MCP serial 服务 `http://localhost:9721`：`flash.ps1` / `tui_smoke.ps1` 通过它向板子发命令
 
 ## 快速开始
@@ -77,6 +77,19 @@ git clone --recursive <repo-url>
 .\tools\08_smoke.ps1
 ```
 
+运行通用真机回归（编译 → 免按键烧录 → 发命令 → 断言输出）：
+
+```powershell
+.\tools\regress.ps1 -Proj 04_duel -Cmd duel -Expect "WINNER"   # 04 异构对战
+.\tools\regress.ps1 -Proj 08_badusb_terminal -Cmd "badusb list" -Expect "No" -NoFlash
+```
+
+向板子串口发单条命令（免控制权，可选抓取 N 秒输出）：
+
+```powershell
+.\tools\mcp_send.ps1 -Cmd duel -Capture 6
+```
+
 ## 实验工程一览
 
 | 工程 | 主题 | 涉及模块 |
@@ -84,7 +97,7 @@ git clone --recursive <repo-url>
 | `01_led` | LED 闪烁 | LED |
 | `02_lcd_uart` | LCD + UART + Shell | LCD、UART、SPI、Shell |
 | `03_photo` | 迷你相框：LCD + TF 卡 BMP 解码 | LCD、SDIO、FatFs、BMP（`next`/`prev`/`info`/`auto` 命令） |
-| `04_duel` | 双核斗法：Mandelbrot 抢行对战 | LCD、Shell、`pico_multicore`（`core1.c`） |
+| `04_duel` | 异构对战：ARM (M33) vs RISC-V (Hazard3) 双核渲染 Mandelbrot | LCD、Shell、`pico_multicore`、archsel 异构切换、Q16.16 定点（`core1_riscv/`）。渲染算法为 ARM/RISC-V **共享同一份** `duel_shared.h::duel_render_frame()`（static inline 纯函数，两侧 include 同一源码，算法永不漂移） |
 | `05_badusb` | USB HID 键盘（TinyUSB） | LCD、KEY、SDIO、FatFs、`tinyusb_device`（脚本语法见 [05 项目 README](arm-dev/05_badusb/README.md)） |
 | `06_terminal` | 迷你终端（全公共库） | Shell、Console、Commands、SDIO、FatFs |
 | `07_pio_lcd` | PIO+DMA LCD 加速终端 + 全屏 TUI | 在 06 基础上加入 `pio_lcd`、`tui`（`tui` 命令） |

@@ -23,6 +23,25 @@ foreach ($tool in @("cmake", "ninja")) {
         exit 1
     }
 }
+
+# ---- RISC-V 交叉工具链: 若不在当前进程 PATH, 自动从用户 PATH / 默认安装点补入 ----
+if (-not (Get-Command riscv-none-elf-gcc -ErrorAction SilentlyContinue)) {
+    $rvPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $cand = $null
+    foreach ($p in $rvPath -split ';') {
+        if ($p -match 'xpack-riscv-none-elf-gcc') { $cand = $p; break }
+    }
+    if (-not $cand) {
+        $def = "D:\Tools\xpack-riscv-none-elf-gcc-15.2.0-1\bin"
+        if (Test-Path "$def\riscv-none-elf-gcc.exe") { $cand = $def }
+    }
+    if ($cand) {
+        $env:Path += ";$cand"
+        Write-Host "  RISC-V 工具链已自动加入 PATH: $cand" -ForegroundColor DarkGray
+    } else {
+        Write-Host "警告: 未找到 riscv-none-elf-gcc (04_duel 等含 RISC-V 核的工程需要它)" -ForegroundColor Yellow
+    }
+}
 if (-not (Test-Path "$SDK\pico_sdk_init.cmake")) {
     Write-Host "pico-sdk 缺失: 请先执行 'git submodule update --init --recursive'" -ForegroundColor Red
     exit 1

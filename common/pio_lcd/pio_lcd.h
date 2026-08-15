@@ -24,6 +24,9 @@ bool pio_lcd_ok(void);
 /* 刷屏: 将 framebuffer 区域 (x,y,w,h) 通过 PIO+DMA 发送到 LCD */
 void pio_lcd_flush(int x, int y, int w, int h);
 
+/* 整帧 blit: 把 RGB565 像素数组 (LCD_W*LCD_H) 拷入 PIO fb 并全屏 DMA 刷新 */
+void pio_lcd_blit_frame(const uint16_t *frame);
+
 /* 单字符渲染: 在 (col,row) 位置绘制字符, 8x16 字体 */
 void pio_lcd_char(int col, int row, char ch, uint16_t fg, uint16_t bg);
 

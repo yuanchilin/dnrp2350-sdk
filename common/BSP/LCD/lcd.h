@@ -127,5 +127,7 @@ void lcd_draw_hline(uint16_t x, uint16_t y, uint16_t len, uint16_t color);      
 void lcd_draw_line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2,uint16_t color);                                  /* 画线函数(直线、斜线) */
 void lcd_draw_pixel(uint16_t x, uint16_t y, uint16_t color);                                                            /* 绘画一个像素点 */
 void lcd_show_char(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint8_t mode, uint16_t color);                    /* 在指定位置显示一个字符 */
+void lcd_show_char_bg(uint16_t x, uint16_t y, uint8_t chr, uint8_t size, uint16_t color, uint16_t bg);                  /* 在指定位置显示一个字符(可指定背景色) */
+void lcd_show_string_bg(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint8_t size, char *p, uint16_t color, uint16_t bg); /* 显示字符串(可指定背景色) */
 
 #endif

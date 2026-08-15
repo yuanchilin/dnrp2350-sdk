@@ -13,7 +13,7 @@
 #include <stdarg.h>
 
 #define MAX_CMD  64
-#define MAX_ARGS 16
+#define MAX_ARGS 24
 #define MAX_HIST 16
 
 static char prompt_str[8] = "$ ";
@@ -55,7 +55,12 @@ void shell_init(const char *prompt)
 
 void shell_register(const char *name, const char *help, shell_cmd_fn fn)
 {
-    if (cmd_cnt >= MAX_ARGS) return;
+    if (cmd_cnt >= MAX_ARGS) {
+        shell_print("shell: 命令槽已满, 忽略 '");
+        shell_print(name);
+        shell_print("'\r\n");
+        return;
+    }
     snprintf(cmds[cmd_cnt].name, 12, "%s", name);
     snprintf(cmds[cmd_cnt].help, 32, "%s", help);
     cmds[cmd_cnt].fn = fn;
