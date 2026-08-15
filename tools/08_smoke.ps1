@@ -92,6 +92,14 @@ Start-Sleep -Milliseconds 800
 $r = Send-Mcp ([string][char]0x1B) 2500        # Esc 退出 TUI
 Check "TUI 退出回到 shell 提示符" ($r -match '\$')
 
+# ---- 3.5 异构对战 (duel 模块) ----
+Write-Host "`n[3.5] 异构对战 (ARM vs RISC-V)"
+$r = Send-Mcp "help`r" 2500
+Check "help 列出 duel/out" ($r -match 'duel' -and $r -match '\bout\b')
+$r = Send-Mcp "duel`r" 10000
+Check "duel 出战报 WINNER" ($r -match 'WINNER')
+Check "duel 超时前回到提示符" ($r -match '\$')
+
 # ---- 4. console/LCD 代码路径 (draw 不崩溃 + 恢复提示符) ----
 Write-Host "`n[4] console/LCD 路径"
 $r = Send-Mcp "clear`r"
