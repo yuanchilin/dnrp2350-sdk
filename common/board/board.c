@@ -15,7 +15,7 @@ void board_init(void)
     sleep_ms(50);
     uart_flush();               /* 清 UART 开机噪声 (原各工程重复的 while(uart_read_byte()>=0)) */
 
-    led_init(); LED(0);         /* LED 常亮 (低电平点亮) */
+    led_init(); LED(1);         /* 默认关灯: GPIO25 与 LCD 背光复用, LED(0) 会点亮背光+绿灯; LCD 工程由 lcd_init 点亮 */
     spi1_init();
     lcd_init();
 }

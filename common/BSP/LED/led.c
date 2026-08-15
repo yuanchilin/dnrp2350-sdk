@@ -28,7 +28,25 @@
  */
 void led_init(void)
 {
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+    gpio_init(LED_GPIO_PIN);
+    gpio_set_dir(LED_GPIO_PIN, GPIO_OUT);
     LED(1);     /* 关闭LED */
+}
+
+/**
+ * @brief       LED 以固定周期闪烁 (阻塞, 不返回)
+ * @param       period_ms: 闪烁周期 (亮+灭 一个完整周期)
+ * @retval      无
+ * @note        DNRP2350A 的 GPIO25 与 LCD 背光复用: 调用本函数会同时
+ *              驱动背光, 需要 LCD 的工程请勿调用 (用 LED_TOGGLE 自控)。
+ */
+void led_blink(uint32_t period_ms)
+{
+    if (period_ms < 2) period_ms = 2;
+    for (;;) {
+        LED(0);                 /* 亮 (低电平点亮) */
+        sleep_ms(period_ms / 2);
+        LED(1);                 /* 灭 */
+        sleep_ms(period_ms / 2);
+    }
 }

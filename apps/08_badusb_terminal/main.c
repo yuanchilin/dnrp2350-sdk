@@ -26,6 +26,7 @@
 #include "badusb/badusb.h"
 #include "duel/duel_core.h"
 #include "duel/duel_cmd.h"
+#include "BSP/LED/led_cmd.h"
 #include "ff.h"
 
 static void echo_colored(char c) { console_set_color(0x03E0, BLACK); console_putc(c); }
@@ -74,6 +75,7 @@ int main(void)
     commands_register_all();
     badusb_init(sd_ok);        /* 自动写示例脚本 + 扫描 .txt + KEY */
     badusb_register();         /* badusb 命令 */
+    led_register();            /* led 命令: on/off/toggle/blink */
 
     /* 异构对战 (ARM vs RISC-V): PIO 整帧刷屏 + 战报停留 5s + 恢复 console 终端 */
     duel_init();

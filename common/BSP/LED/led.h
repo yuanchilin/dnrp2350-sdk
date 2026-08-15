@@ -23,10 +23,11 @@
 
 #include "pico/stdlib.h"
 #include <stdio.h>
+#include <stdint.h>
 
 
-/* 引脚定义 */
-#define LED_GPIO_PIN    PICO_DEFAULT_LED_PIN    /* LED连接的GPIO端口 */
+/* 引脚定义 — DNRP2350A 板载 LED 接 GPIO3 (官方例程: 正点原子RP2350A: IO3) */
+#define LED_GPIO_PIN    3
 
 /* 引脚的输出的电平状态 */
 enum GPIO_OUTPUT_STATE
@@ -35,7 +36,7 @@ enum GPIO_OUTPUT_STATE
     PIN_SET
 };
 
-/* LED端口定义 */
+/* LED端口定义 — 与官方例程一致: x 直接映射电平 (LED(1)=高电平=灭, LED(0)=低电平=亮) */
 #define LED(x)          do { x ?                                \
                              gpio_put(LED_GPIO_PIN, PIN_SET) :  \
                              gpio_put(LED_GPIO_PIN, PIN_RESET); \
@@ -46,5 +47,6 @@ enum GPIO_OUTPUT_STATE
 
 /* 函数声明*/
 void led_init(void);    /* 初始化LED */
+void led_blink(uint32_t period_ms);  /* LED 以 period_ms 周期闪烁 (常驻, 不返回) */
 
 #endif
